@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "cs-ontology": {
-      "command": "node",
-      "args": ["/절대경로/cs-ontology-agent/src/server.js"]
-    }
-  }
-}
