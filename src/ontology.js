@@ -32,7 +32,7 @@ export function depth(id) {
 }
 const closure = ids => { const s = new Set(); for (const k of ids) { s.add(k); for (const a of ancestors(k)) s.add(a); } return s; };
 
-// ── Concept ─tested_by→ ExamItem ──
+// ── Concept ─tested_by→ ExamItem (출제 근거 메타데이터) ──
 function expandRef(r) {
   r = r.replace(/\(주관식\)/, '');
   let m = r.match(/^(\d{3})~(\d{3})$/);
@@ -47,17 +47,6 @@ for (const n of nodes) for (const r of n.exam.refs) for (const k of expandRef(r)
   itemIdx.get(k).add(n.id);
 }
 export const examItemCount = itemIdx.size;
-
-export function resolveItem(raw) {
-  const t = String(raw).trim().replace(/\s+/g, '');
-  let m;
-  if ((m = t.match(/^(?:교재)?(\d{1,3})(?:번)?$/))) { const k = String(+m[1]).padStart(3, '0'); return { input: raw, item: '교재 ' + k, concepts: [...(itemIdx.get(k) || [])] }; }
-  if ((m = t.match(/^모의([12])[-_.]?(\d{1,2})(?:번)?$/))) { const k = `모의${m[1]}-${String(+m[2]).padStart(2, '0')}`; return { input: raw, item: k, concepts: [...(itemIdx.get(k) || [])] }; }
-  if ((m = t.match(/^(?:공식)?예시0?(\d)$/))) { const k = `공식 예시0${m[1]}`; return { input: raw, item: k, concepts: [...(itemIdx.get(k) || [])] }; }
-  if ((m = t.match(/^[#cC](\d{1,3})$/)) && byId.has(+m[1])) return { input: raw, item: '개념 ' + m[1], concepts: [+m[1]] };
-  const hit = nodes.find(n => n.title.replace(/\s/g, '').includes(t));
-  return { input: raw, item: hit ? hit.title : String(raw), concepts: hit ? [hit.id] : [] };
-}
 
 // ── 조회 ──
 export function getConcept(id) {
@@ -107,16 +96,30 @@ export function nextQuestion(W, known = [], confused = [], asked = []) {
   const pick = rankShared(W, new Set([...kc, ...askedSet])).find(c => !askedSet.has(c.id) && !kc.has(c.id));
   return pick ? pick.id : null;
 }
+export const LINK = 5;
+export function chain(r, w) {
+  if (r === w) return [w];
+  if (!ancestors(w).has(r)) return [];
+  const prev = new Map([[r, null]]), queue = [r];
+  while (queue.length && !prev.has(w)) {
+    const x = queue.shift();
+    for (const y of [...byId.get(x).next].sort((a, b) => a - b)) if ((y === w || ancestors(w).has(y)) && !prev.has(y)) { prev.set(y, x); queue.push(y); }
+  }
+  const out = [];
+  for (let x = w; x != null; x = prev.get(x)) out.push(x);
+  return out.reverse();
+}
 export function reviewPlan(W, known = [], confused = []) {
   let roots = confused.filter(g => !confused.some(h => h !== g && ancestors(g).has(h)));
   const direct = roots.length === 0;
   if (direct) roots = W.slice();
-  const path = new Set(W);
-  for (const r of roots) for (const w of W) {
-    if (r === w) { path.add(r); continue; }
-    if (!ancestors(w).has(r)) continue;
-    path.add(r);
-    for (const x of ancestors(w)) if (ancestors(x).has(r)) path.add(x);
+  // 틀린 개념마다 가장 가까운 "헷갈림" 개념에서 가장 짧은 선행 사슬만 잇는다 (웹 데모와 같은 규칙).
+  // LINK보다 멀면 원인으로 보지 않고 그 개념 자체를 복습한다.
+  const path = new Set([...W, ...confused]);
+  for (const w of W) {
+    let best = null;
+    for (const g of confused) { const c = chain(g, w); if (c.length && c.length <= LINK && (!best || c.length < best.length)) best = c; }
+    if (best) for (const x of best) path.add(x);
   }
   const kc = closure(known);
   const order = [...path]
@@ -124,13 +127,11 @@ export function reviewPlan(W, known = [], confused = []) {
     .sort((a, b) => depth(a) - depth(b) || a - b);
   return { stuck_at: roots.map(brief), problem_is_the_concept_itself: direct, review_order: order.map(brief) };
 }
-export function diagnose(items, known = [], confused = [], asked = []) {
-  const resolved = items.map(resolveItem);
-  const W = [...new Set(resolved.flatMap(r => r.concepts))].sort((a, b) => a - b);
+export function diagnose(concepts, known = [], confused = [], asked = []) {
+  const W = [...new Set(concepts.map(Number).filter(i => byId.has(i)))].sort((a, b) => a - b);
   const shared = rankShared(W).slice(0, 6).map(c => ({ ...brief(c.id), shared_by: `${c.cov}/${W.length}` }));
   const q = W.length ? nextQuestion(W, known, confused, asked) : null;
   return {
-    exam_items: resolved.map(r => ({ input: r.input, item: r.item, concepts: r.concepts.map(brief) })),
     wrong_concepts: W.map(brief),
     shared_prerequisites: shared,
     next_question: q == null ? null : { ...brief(q), why: byId.get(q).why, ask: `${q} ${byId.get(q).title}, 설명할 수 있어?` },

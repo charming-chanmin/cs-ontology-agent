@@ -1,12 +1,13 @@
 {
   "name": "cs-ontology-agent",
-  "version": "0.1.0",
-  "description": "독학사 통합컴퓨터시스템 개념 온톨로지 + 오답 진단 MCP 서버",
+  "version": "0.5.0",
+  "description": "독학사 컴퓨터공학 개념 온톨로지 + 학습 코치(앎·모름 지도·길잡이·원인 찾기) + MCP 서버",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node test/smoke.mjs",
-    "build:data": "python3 scripts/build_ontology.py"
+    "test": "node test/smoke.mjs && node app/test/calc.test.mjs && node app/test/spec.test.mjs && node app/test/text.test.mjs && node app/test/sim.mjs",
+    "build:data": "python3 scripts/build_ontology.py",
+    "build:app": "python3 app/build.py"
   },
   "keywords": [
     "mcp",

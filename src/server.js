@@ -5,8 +5,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as O from './ontology.js';
+import { makeQuiz, gradeQuiz, QUIZ_SCOPES } from './quiz.js';
 
-const server = new McpServer({ name: 'cs-ontology', version: '0.1.0' });
+const server = new McpServer({ name: 'cs-ontology', version: '0.2.0' });
 const json = value => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 const fail = msg => ({ isError: true, content: [{ type: 'text', text: msg }] });
 const readOnly = { readOnlyHint: true, openWorldHint: false };
@@ -32,12 +33,57 @@ server.registerTool('get_prerequisite_path', {
   annotations: readOnly,
 }, async ({ id }) => O.byId.has(id) ? json(O.prerequisitePath(id)) : fail(`개념 ${id}번은 없어.`));
 
-server.registerTool('find_concepts_for_exam_items', {
-  title: '문제 → 개념',
-  description: '교재 문제 번호("056"), 모의고사("모의1-22"), 공식 예시("예시06")를 받아 각 문제가 묻는 개념을 돌려준다.',
-  inputSchema: { items: z.array(z.string()).min(1).max(30) },
+// ── 자체 문제: 같은 seed면 같은 문제라서 서버가 상태를 들고 있지 않아도 채점할 수 있다 ──
+const scopeEnum = z.enum(Object.keys(QUIZ_SCOPES));
+const quizArgs = {
+  seed: z.number().int().min(1).max(4294967295).optional().describe('같은 seed면 같은 문제. 생략하면 새로 정한다.'),
+  scope: scopeEnum.optional().describe(Object.entries(QUIZ_SCOPES).map(([k, v]) => `${k}=${v.label}`).join(', ')),
+  count: z.number().int().min(1).max(20).optional(),
+  concept_ids: z.array(z.number().int()).max(40).optional().describe('이 개념들로만 낸다 (복습 순서로 다시 풀기).'),
+};
+const quizOf = ({ seed, scope, count, concept_ids }) => makeQuiz(O.nodes, { seed, scope, count, ids: concept_ids });
+const letterToIndex = a => {
+  if (a == null || a === '') return null;
+  const s = String(a).trim().toUpperCase();
+  const i = 'ABCD'.indexOf(s);
+  return i >= 0 ? i : /^[1-4]$/.test(s) ? Number(s) - 1 : null;
+};
+
+server.registerTool('generate_quiz', {
+  title: '문제 만들기',
+  description: '개념 지도에서 4지선다 문제를 만든다(교재 불필요). 유형: 개념 맞히기(정의를 보고 개념 고르기), 선행 찾기, 다음 찾기. '
+    + '정답은 들어 있지 않다. 학생 답을 받으면 같은 seed·scope·count·concept_ids로 grade_quiz를 부른다.',
+  inputSchema: quizArgs,
   annotations: readOnly,
-}, async ({ items }) => json(items.map(O.resolveItem).map(r => ({ input: r.input, item: r.item, concepts: r.concepts.map(id => ({ id, title: O.byId.get(id).title })) }))));
+}, async args => {
+  const seed = args.seed ?? (Math.floor(Math.random() * 4294967294) + 1);
+  const quiz = quizOf({ ...args, seed });
+  return json({
+    seed, scope: quiz.scope, scope_label: quiz.scope_label, count: quiz.questions.length,
+    questions: quiz.questions.map(q => ({ no: q.no, type: q.type_label, prompt: q.prompt, quote: q.quote ?? undefined, options: q.options.map(o => `${o.letter}. ${o.title}`) })),
+  });
+});
+
+server.registerTool('grade_quiz', {
+  title: '채점',
+  description: 'generate_quiz와 같은 인자에 학생 답(answers: "A"~"D" 또는 1~4, 건너뛴 문제는 null)을 넣으면 채점한다. '
+    + '틀린 문제마다 정답, 고른 보기가 왜 틀렸는지, 책임 개념(blame)을 주고, wrong_concepts는 diagnose_wrong_answers의 concepts로 그대로 넣는다.',
+  inputSchema: { ...quizArgs, seed: z.number().int().min(1).max(4294967295), answers: z.array(z.union([z.string(), z.number(), z.null()])).max(20) },
+  annotations: readOnly,
+}, async ({ answers, ...args }) => {
+  const quiz = quizOf(args);
+  if (answers.length !== quiz.questions.length) return fail(`문제는 ${quiz.questions.length}개인데 답이 ${answers.length}개야. 건너뛴 문제는 null로 넣어 줘.`);
+  const g = gradeQuiz(quiz, answers.map(letterToIndex));
+  const brief = id => ({ id, title: O.byId.get(id).title });
+  return json({
+    score: `${g.score}/${g.total}`,
+    wrong: g.results.filter(r => !r.correct).map(r => ({
+      no: r.no, chosen: r.chosen ? `${r.chosen.letter}. ${r.chosen.title}` : null, answer: `${r.answer.letter}. ${r.answer.title}`,
+      why_wrong: r.note || undefined, explain: r.explain, blame: brief(r.blame),
+    })),
+    wrong_concepts: g.wrong_concepts,
+  });
+});
 
 server.registerTool('rank_shared_prerequisites', {
   title: '공통 선행 개념',
@@ -51,16 +97,20 @@ server.registerTool('rank_shared_prerequisites', {
 
 server.registerTool('diagnose_wrong_answers', {
   title: '오답 진단',
-  description: '틀린 문제 목록으로 진단한다. 처음엔 items만 넣으면 공통 선행 개념과 학생에게 물어볼 다음 질문(next_question)을 준다. '
-    + '학생의 답을 known(설명 가능) / confused(헷갈림) / asked(넘어감 포함 이미 물어본 것)에 넣어 다시 부르면, next_question이 null이 될 때 plan(막힌 지점, 복습 순서)을 준다.',
+  description: '틀린 개념 목록(grade_quiz의 wrong_concepts)으로 진단한다. 처음엔 concepts만 넣으면 공통 선행 개념과 학생에게 물어볼 다음 질문(next_question)을 준다. '
+    + '학생의 답을 known(설명 가능) / confused(헷갈림) / asked(넘어감 포함 이미 물어본 것)에 넣어 다시 부르면, next_question이 null이 될 때 plan(막힌 지점, 복습 순서)을 준다. '
+    + '복습이 끝나면 review_order의 id를 generate_quiz의 concept_ids로 넣어 다시 풀게 한다.',
   inputSchema: {
-    items: z.array(z.string()).min(1).max(30),
+    concepts: z.array(z.number().int()).min(1).max(30),
     known: z.array(z.number().int()).optional(),
     confused: z.array(z.number().int()).optional(),
     asked: z.array(z.number().int()).optional(),
   },
   annotations: readOnly,
-}, async ({ items, known = [], confused = [], asked = [] }) => json(O.diagnose(items, known, confused, asked)));
+}, async ({ concepts, known = [], confused = [], asked = [] }) => {
+  const r = O.diagnose(concepts, known, confused, asked);
+  return r.wrong_concepts.length ? json(r) : fail('아는 개념 번호가 없어. grade_quiz의 wrong_concepts나 search_concepts로 찾은 id를 넣어 줘.');
+});
 
 server.registerResource('ontology-schema', 'ontology://schema', {
   title: '온톨로지 스키마',
