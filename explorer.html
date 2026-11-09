@@ -1,0 +1,755 @@
+<title>CS 개념 온톨로지</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 헤더(정의·통계·스키마) → 도구줄 → [그래프 | 개념 카드] 2단, 폰에선 위아래 */
+:root{
+  --bg:#F4F6F9; --surface:#FFFFFF; --ink:#16202C; --muted:#5F6B7A; --line:#D6DCE4; --grid:#E6EAF0;
+  --anc:#2F62D0; --nxt:#1E8C5C; --sel:#16202C; --bad:#C2302B; --ok:#1E8C5C;
+  --h5:#D9532C; --h5t:#FFFFFF; --h4:#EBA43A; --h4t:#1F1607; --h3:#3E8F95; --h3t:#FFFFFF;
+  --h2:#9DB0C8; --h2t:#14202E; --h1:#D5DBE3; --h1t:#3A4655;
+  --font:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1217; --surface:#151B23; --ink:#E4E9F0; --muted:#94A0AF; --line:#29313C; --grid:#1C232C;
+  --anc:#7EA4FF; --nxt:#4FD19A; --sel:#F2F5F9; --bad:#FF7A70; --ok:#4FD19A;
+  --h5:#E8663F; --h5t:#120804; --h4:#E9B04F; --h4t:#1B1304; --h3:#4FA8AE; --h3t:#06191A;
+  --h2:#5C7290; --h2t:#EEF3F9; --h1:#2E3743; --h1t:#B9C3D0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1217; --surface:#151B23; --ink:#E4E9F0; --muted:#94A0AF; --line:#29313C; --grid:#1C232C;
+  --anc:#7EA4FF; --nxt:#4FD19A; --sel:#F2F5F9; --bad:#FF7A70; --ok:#4FD19A;
+  --h5:#E8663F; --h5t:#120804; --h4:#E9B04F; --h4t:#1B1304; --h3:#4FA8AE; --h3t:#06191A;
+  --h2:#5C7290; --h2t:#EEF3F9; --h1:#2E3743; --h1t:#B9C3D0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 28px}
+.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+h1{font-size:clamp(24px,3.4vw,34px);line-height:1.2;margin:2px 0 6px;font-weight:600;text-wrap:balance}
+.lede{margin:0;max-width:68ch;color:var(--muted)}
+.head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 28px;align-items:end}
+.stats{display:flex;gap:18px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column}
+.stat b{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.schema{font-family:var(--mono);font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px;border-top:1px solid var(--line);padding-top:10px}
+.schema i{font-style:normal;color:var(--ink)}
+.schema em{font-style:normal;color:var(--anc)}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{position:relative;flex:1 1 260px;max-width:420px}
+.search input{width:100%;font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.search input:focus-visible{outline:2px solid var(--anc);outline-offset:1px}
+.sugg{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px;margin:0;list-style:none;box-shadow:0 8px 24px rgb(0 0 0 / .12)}
+.sugg li button{all:unset;display:flex;gap:8px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:14px}
+.sugg li button:hover,.sugg li button:focus-visible{background:var(--grid)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13.5px;border:0;background:transparent;color:var(--muted);padding:8px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible{outline:2px solid var(--anc);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);align-items:center}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.ln{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:3px;margin-right:4px}
+.main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:16px;align-items:start}
+.stage{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;height:min(74vh,760px);min-height:420px}
+.stage svg{width:100%;height:100%;display:block;touch-action:none;cursor:grab;
+  background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:18px 18px}
+.stage svg:active{cursor:grabbing}
+.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:16px;cursor:pointer}
+.zoom button:focus-visible{outline:2px solid var(--anc)}
+.cap{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--surface) 85%,transparent);padding:2px 6px;border-radius:6px}
+.node rect{stroke:transparent;stroke-width:2}
+.node text{font-size:12px;font-family:var(--font);pointer-events:none}
+.node .num{font-family:var(--mono);font-size:10.5px;opacity:.75}
+.node{cursor:pointer}
+.node:focus-visible rect{stroke:var(--anc);stroke-width:3}
+.h5 rect{fill:var(--h5)} .h5 text{fill:var(--h5t)}
+.h4 rect{fill:var(--h4)} .h4 text{fill:var(--h4t)}
+.h3 rect{fill:var(--h3)} .h3 text{fill:var(--h3t)}
+.h2 rect{fill:var(--h2)} .h2 text{fill:var(--h2t)}
+.h1 rect{fill:var(--h1)} .h1 text{fill:var(--h1t)}
+.node.root rect{stroke:var(--ink);stroke-dasharray:4 3;stroke-width:1.5}
+.node.sel rect{stroke:var(--sel);stroke-width:3;stroke-dasharray:none}
+.node.next rect{stroke:var(--nxt);stroke-width:2.5;stroke-dasharray:5 3}
+.edge{fill:none;stroke:var(--line);stroke-width:1.4}
+.edge.anc{stroke:var(--anc);stroke-width:1.8}
+.edge.nxt{stroke:var(--nxt);stroke-width:1.8;stroke-dasharray:5 4}
+.dim{opacity:.16}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.kick{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+.stars{color:var(--h5);letter-spacing:1px}
+.panel h2{margin:0;font-size:22px;line-height:1.3;font-weight:600;text-wrap:balance}
+.panel h2 .num{font-family:var(--mono);font-weight:500;color:var(--muted);margin-right:8px;font-size:18px}
+dl{margin:0;display:grid;gap:10px}
+dt{font-size:12px;color:var(--muted);letter-spacing:.04em}
+dd{margin:2px 0 0}
+.exam{display:grid;gap:6px}
+.bar{height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--h5)}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.ref{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+h3{margin:0;font-size:13px;font-weight:600;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:3px 9px;cursor:pointer;text-align:left}
+.chip:hover{border-color:var(--ink)} .chip:focus-visible{outline:2px solid var(--anc);outline-offset:1px}
+.chip .n{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:5px}
+.chip.a{border-color:color-mix(in srgb,var(--anc) 55%,var(--line))}
+.chip.x{border-color:color-mix(in srgb,var(--nxt) 55%,var(--line))}
+.path{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto;padding-right:4px}
+.lvl{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start}
+.lvl>span{font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:5px}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.node.wrong rect{stroke:var(--bad);stroke-width:3.5;stroke-dasharray:none}
+.node.gap rect{stroke:var(--sel);stroke-width:4;stroke-dasharray:none}
+.node.known{opacity:.38}
+.edge.path{stroke:var(--bad);stroke-width:2}
+.diag{display:flex;flex-direction:column;gap:14px}
+.node.qn rect{fill:var(--h1)} .node.qn text{fill:var(--h1t)}
+.node.qn.ok rect{fill:var(--ok)} .node.qn.ok text{fill:var(--bg)} .node.qn.bad rect{fill:var(--bad)} .node.qn.bad text{fill:var(--bg)}
+body.quizmap .legend{display:none}
+@media (hover:none){.kbd{display:none}}
+.node.ok rect{stroke:var(--ok);stroke-width:4;stroke-dasharray:none;vector-effect:non-scaling-stroke}
+.node.bad rect{stroke:var(--bad);stroke-width:4;stroke-dasharray:none;vector-effect:non-scaling-stroke}
+.prog{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.prog .bar i{background:var(--ink)}
+.qp{font-size:16px;font-weight:600;line-height:1.5}
+.ask blockquote{margin:0;padding:8px 12px;border-left:3px solid var(--h4);background:var(--surface);border-radius:0 6px 6px 0;font-size:15px}
+.opts{display:grid;gap:8px}
+.opt{font:inherit;font-size:14.5px;text-align:left;display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer;min-height:44px}
+.opt b{font-family:var(--mono);font-weight:500;color:var(--muted)}
+.opt:hover{border-color:var(--ink)} .opt:focus-visible{outline:2px solid var(--anc);outline-offset:1px}
+.opt.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,var(--surface))}
+.opt.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,var(--surface))}
+.opt.off{opacity:.55} .opt[aria-disabled="true"]{cursor:default} .opt[aria-disabled="true"]:hover{border-color:var(--line)}
+.opt.ok[aria-disabled="true"]:hover{border-color:var(--ok)} .opt.bad[aria-disabled="true"]:hover{border-color:var(--bad)}
+.fb{border-radius:8px;padding:10px 12px;display:grid;gap:6px;border:1px solid var(--line);background:var(--surface)}
+.fb.ok{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))} .fb.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))}
+.fb p{margin:0}
+.chip.scope[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.score{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.score b{font-family:var(--mono);font-size:40px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.score .of{font-family:var(--mono);font-size:18px;color:var(--muted)}
+.btn{font:inherit;font-size:13.5px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);border-radius:8px;padding:7px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible{outline:2px solid var(--anc);outline-offset:2px}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start}
+.step>b{font-family:var(--mono);font-weight:500;font-size:12px;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)}
+.step h3{margin-bottom:6px}
+.cand{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:13.5px}
+.cand .bar i{background:var(--anc)}
+.ask{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;background:var(--bg)}
+.ask p{margin:0}
+.review{margin:0;padding-left:20px;display:grid;gap:6px}
+.review li{padding-left:2px}
+.review .meta{font-size:12px;color:var(--muted)}
+.more{margin-top:6px} .more summary{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0} .more .review{margin-top:6px}
+.trace{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:150px;overflow:auto;white-space:pre-wrap}
+.answer{white-space:pre-wrap;font-size:14.5px;line-height:1.7}
+.ex{font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--muted);margin-left:6px;vertical-align:1px}
+footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+@media (max-width:900px){.main.qmode .panel{order:-1}.main{grid-template-columns:minmax(0,1fr)}.stage{height:62vh;min-height:360px}.head{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:no-preference){.node rect,.edge{transition:opacity .2s}}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <div class="eyebrow">독학사 통합컴퓨터시스템 · Knowledge Graph</div>
+      <h1>CS 개념 온톨로지</h1>
+      <p class="lede">문제집 200문항과 공식 평가영역을 개념 147개, 선행 관계 222개로 다시 엮은 지식 지도야. 개념을 하나 고르면 그걸 이해하는 데 필요한 선행 개념이 전부 거꾸로 펼쳐져. 「문제·진단」에서는 이 지도로 문제를 자동으로 만들고, 틀린 문제가 어느 선행 개념에서 막혔는지 거꾸로 짚어 줘.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div class="schema" id="schema" aria-label="온톨로지 스키마"></div>
+
+  <div class="tools">
+    <div class="search">
+      <label for="q" class="eyebrow" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">개념 검색</label>
+      <input id="q" type="search" placeholder="개념 이름이나 번호 (예: 인터럽트, 115)" autocomplete="off">
+      <ul class="sugg" id="sugg" hidden></ul>
+    </div>
+    <div class="seg" role="group" aria-label="보기">
+      <button id="vLine" aria-pressed="true">계보 보기</button>
+      <button id="vMap" aria-pressed="false">전체 지도</button>
+      <button id="vDiag" aria-pressed="false">문제·진단</button>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="main">
+    <div class="stage">
+      <svg id="svg" role="img" aria-label="개념 그래프"><defs>
+        <marker id="mA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--anc)"/></marker>
+        <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--nxt)"/></marker>
+        <marker id="mD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--line)"/></marker>
+      <marker id="mX" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--bad)"/></marker>
+      </defs><g id="scene"></g></svg>
+      <div class="zoom"><button id="zi" aria-label="확대">+</button><button id="zo" aria-label="축소">−</button><button id="zf" aria-label="화면에 맞추기">⤢</button></div>
+      <div class="cap" id="cap"></div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script>
+const D = {"chapters":[{"id":1,"title":"컴퓨터의 뼈대","from":1,"to":2},{"id":2,"title":"0과 1로 숫자 표현하기","from":3,"to":5},{"id":3,"title":"계산하는 회로: 게이트와 조합회로","from":6,"to":14},{"id":4,"title":"숫자 계산과 코드","from":15,"to":23},{"id":5,"title":"기억하는 회로: 순차회로","from":24,"to":30},{"id":6,"title":"기억장치 부품","from":31,"to":33},{"id":7,"title":"CPU 만들기","from":34,"to":51},{"id":8,"title":"메모리가 느려서: 계층과 캐시","from":52,"to":59},{"id":9,"title":"보조기억장치","from":60,"to":62},{"id":10,"title":"느린 장치와 대화하기: 입출력","from":63,"to":70},{"id":11,"title":"프로그램이 실행되기까지: 시스템 SW","from":71,"to":77},{"id":12,"title":"OS의 등장과 프로세스","from":78,"to":83},{"id":13,"title":"누구부터 CPU를 줄까: 스케줄링","from":84,"to":93},{"id":14,"title":"같이 쓰면 생기는 문제: 동기화","from":94,"to":99},{"id":15,"title":"서로 기다리다 멈춤: 교착상태","from":100,"to":103},{"id":16,"title":"메모리를 나눠 쓰기","from":104,"to":117},{"id":17,"title":"디스크와 파일","from":118,"to":123},{"id":18,"title":"실제 OS: UNIX와 리눅스","from":124,"to":127},{"id":19,"title":"더 빠르게: 고성능·병렬","from":128,"to":131},{"id":20,"title":"특정 목적용: 임베디드","from":132,"to":134},{"id":21,"title":"하나를 여럿처럼: 가상머신","from":135,"to":141},{"id":22,"title":"지키기: 보안","from":142,"to":147}],"chains":[{"no":"①","name":"계산의 뿌리","steps":["트랜지스터 스위치","비트","부울 대수","게이트","가산기","ALU","CPU"]},{"no":"②","name":"기억의 뿌리","steps":["게이트 + 피드백","래치","(+클록) 플립플롭","레지스터·카운터·SRAM"]},{"no":"③","name":"2ⁿ의 사슬","steps":["n비트 = 2ⁿ가지","디코더 n","2ⁿ","MAR n비트","주소선 n개","캐시·페이지 주소 필드"]},{"no":"④","name":"음수의 사슬","steps":["2의 보수","뺄셈을 가산기로","오버플로","V 플래그"]},{"no":"⑤","name":"속도의 사슬","steps":["명령어 사이클","클록·CPI","성능 계산","파이프라인","해저드","RISC"]},{"no":"⑥","name":"메모리 속도 차이","steps":["계층","지역성","캐시","사상","쓰기 정책","(멀티코어) 캐시 일관성"]},{"no":"⑦","name":"장치 속도 차이","steps":["폴링","인터럽트","DMA","채널"]},{"no":"⑧","name":"실행의 사슬","steps":["소스","컴파일","어셈블","링크","로드","프로세스","PCB","상태 전이","스케줄링"]},{"no":"⑨","name":"공유의 사슬","steps":["스레드","경쟁 조건","임계구역","세마포어","(잘못 쓰면) 교착","예방·회피·탐지"]},{"no":"⑩","name":"공간의 사슬","steps":["분할","단편화","페이징","가상 메모리","페이지 부재","페이지 교체","스래싱"]},{"no":"⑪","name":"디스크의 사슬","steps":["탐색시간","디스크 스케줄링 / 고장","RAID / 파일","할당 방식","UNIX i-node"]},{"no":"⑫","name":"확장의 사슬","steps":["클록 한계","멀티코어 / 특정 목적","임베디드 / 자원 낭비","가상화 / 공격","보안"]}],"nodes":[{"id":1,"title":"폰노이만 구조·프로그램 내장","stars":3,"root":true,"chapter":1,"why":"초기 컴퓨터(에니악)는 프로그램을 바꾸려면 전선을 다시 꽂아야 했어","core":"프로그램도 데이터처럼 메모리에 넣어 두고 CPU가 하나씩 꺼내 실행해. 구성 = CPU(연산·제어) + 메모리 + 입출력 + 이걸 잇는 버스","calc":"","prereq":[],"next":[2,34],"exam":{"prob":25,"types":["mcq"],"refs":["008"]},"warn":false},{"id":2,"title":"컴퓨터 역사·세대","stars":2,"root":false,"chapter":1,"why":"부품이 작고 빨라질 때마다 세대가 바뀌었어","core":"1세대 진공관 → 2세대 트랜지스터 → 3세대 IC(집적회로) → 4세대 LSI·VLSI. 에니악(ENIAC) = 10진, 에드박(EDVAC) = 2진·폰노이만 사상. 트랜지스터 = 전기로 켜고 끄는 스위치","calc":"","prereq":[1],"next":[3],"exam":{"prob":25,"types":["mcq"],"refs":["008"]},"warn":false},{"id":3,"title":"비트·2진수·자리값","stars":3,"root":true,"chapter":2,"why":"스위치(트랜지스터)는 켜짐/꺼짐 2가지만 확실히 구별돼","core":"비트 = 0/1 한 칸, 바이트 = 8비트. 자리값 …8 4 2 1. n비트 = 2ⁿ가지","calc":"n비트로 2ⁿ가지 → 나중에 MAR 비트 수, 디코더 출력 수, 주소 필드 계산이 전부 이 한 줄에서 나와","prereq":[2],"next":[4,6,13,18,24,57,108],"exam":{"prob":null,"types":[],"refs":[],"raw":"직접 출제는 드묾 · 모든 계산의 뿌리"},"warn":false},{"id":4,"title":"진법 변환 (2·8·10·16)","stars":4,"root":false,"chapter":2,"why":"2진수는 너무 길어서 사람이 읽기 힘들어","core":"10진 → 2진 = 2로 나눈 나머지를 거꾸로. 2진 → 8진은 3자리씩, 16진은 4자리씩 오른쪽부터 묶기. 8진 ↔ 16진은 2진을 거쳐서","calc":"8 = 2³, 16 = 2⁴라서 3자리·4자리로 딱 떨어지게 묶여","prereq":[3],"next":[5,15,21],"exam":{"prob":45,"types":["mcq","essay","calc"],"refs":["034","040","043","044","050","040"]},"warn":true},{"id":5,"title":"소수의 2진 변환","stars":2,"root":false,"chapter":2,"why":"0.5, 0.375 같은 소수도 비트로 나타내야 해","core":"×2 하고 정수 부분 떼기를 반복. 분모가 2의 거듭제곱이면 끝나고(0.375), 아니면 무한히 반복(0.1) → 잘려서 오차","calc":"소수점 아래 자리값이 1/2, 1/4, 1/8이라서","prereq":[4],"next":[20],"exam":{"prob":null,"types":[],"refs":[],"raw":"부동소수점과 묶여 출제 · 교재 0"},"warn":false},{"id":6,"title":"부울 대수","stars":3,"root":true,"chapter":3,"why":"참/거짓을 수식으로 다루면 회로를 식으로 설계할 수 있어","core":"변수는 0 또는 1. AND = 곱(·), OR = 합(+), NOT = 보수(')","calc":"","prereq":[3],"next":[7],"exam":{"prob":null,"types":[],"refs":[],"raw":"게이트·법칙의 뿌리"},"warn":false},{"id":7,"title":"기본 게이트·진리표·범용 게이트","stars":5,"root":false,"chapter":3,"why":"부울 연산을 트랜지스터로 만든 부품이 게이트야","core":"입력 00·01·10·11 순서로 AND 0001 / OR 0111 / NAND 1110 / NOR 1000 / XOR 0110(다르면 1) / XNOR 1001(같으면 1). NAND·NOR 하나만으로 모든 회로를 만들 수 있어서 범용 게이트","calc":"NAND = AND 결과를 뒤집은 것이라 AND 진리표를 거꾸로 읽으면 끝","prereq":[6],"next":[8,10,11,21,23],"exam":{"prob":50,"types":["mcq","figure"],"refs":["014","032","014"]},"warn":true},{"id":8,"title":"부울 법칙·드모르간","stars":4,"root":false,"chapter":3,"why":"같은 기능을 게이트 적게 만들어야 싸고 빨라 → 식을 줄여야 해","core":"A+0=A, A·1=A, A+1=1, A·0=0, A+A=A, A+A'=1, A·A'=0. 흡수 A+AB=A, A(A+B)=A. A+A'B=A+B. 드모르간 (A+B)'=A'B', (AB)'=A'+B'","calc":"흡수법칙: A+AB = A(1+B) = A·1 = A","prereq":[7],"next":[9],"exam":{"prob":40,"types":["mcq","essay"],"refs":["027","047","048"]},"warn":false},{"id":9,"title":"카르노 맵","stars":3,"root":false,"chapter":3,"why":"법칙으로 줄이는 건 감이 필요해서 어려워 → 표에 그려서 눈으로 묶자","core":"1을 1·2·4·8개짜리 직사각형으로 최대한 크게 묶음. 맨 끝과 끝도 이웃. 묶음 안에서 값이 안 변하는 변수만 남김","calc":"칸 순서가 00·01·11·10이라 이웃 칸은 변수 1개만 달라 → 그 변수가 A+A'=1로 사라짐","prereq":[8],"next":[],"exam":{"prob":25,"types":["mcq","essay"],"refs":["024","031"]},"warn":false},{"id":10,"title":"마스크 연산","stars":3,"root":false,"chapter":3,"why":"레지스터의 특정 비트만 골라서 바꾸고 싶어","core":"끄기(0으로) = AND, 켜기(1로) = OR, 반전 = XOR. 자바 flags & ~M, flags | M, flags ^ M","calc":"x AND 0 = 0, x AND 1 = x / x OR 1 = 1 / x XOR 1 = x'","prereq":[7],"next":[],"exam":{"prob":35,"types":["mcq","essay"],"refs":["028","037","049"]},"warn":false},{"id":11,"title":"조합회로 개념","stars":3,"root":true,"chapter":3,"why":"게이트를 엮어서 덧셈·선택 같은 기능을 만들어","core":"출력이 지금 입력만으로 정해짐(기억 X) = 순수함수. 진리표로 나타냄","calc":"","prereq":[7],"next":[12,13,25],"exam":{"prob":null,"types":[],"refs":[],"raw":"순차회로와 비교로 출제"},"warn":false},{"id":12,"title":"가산기·감산기","stars":4,"root":false,"chapter":3,"why":"컴퓨터의 계산은 결국 전부 덧셈이야","core":"반가산기 S = A⊕B, C = A·B (XOR 1 + AND 1). 아래 자리 올림(Cin)까지 더하면 전가산기 = 반가산기 2 + OR 1. 전가산기 n개 = n비트 병렬가산기. 반감산기 D = A⊕B, Br = A'·B. 그림에 Cin 있으면 '전', 출력이 D·Br이면 감산기","calc":"1+1 = 10(합 0, 올림 1) → 합은 '다르면 1' = XOR, 올림은 '둘 다 1' = AND","prereq":[11],"next":[16,34],"exam":{"prob":40,"types":["mcq","figure"],"refs":["025","026","042","061","모의1-02"]},"warn":true},{"id":13,"title":"디코더·인코더","stars":5,"root":false,"chapter":3,"why":"n비트 번호로 2ⁿ개 중 하나를 골라야 하는 일이 많아 (메모리 칸 선택, 명령어 해독)","core":"디코더 n → 2ⁿ: 번호를 받아 그 자리만 1. 인코더 2ⁿ → n: 반대","calc":"n비트로 2ⁿ가지 번호를 만들 수 있으니까","prereq":[11,3],"next":[14,36,47],"exam":{"prob":50,"types":["mcq","figure"],"refs":["020~023"]},"warn":false},{"id":14,"title":"멀티플렉서·디멀티플렉서","stars":5,"root":false,"chapter":3,"why":"여러 입력 중 하나만 골라 한 줄로 보내야 해 (버스)","core":"MUX = 2ⁿ 입력 + 선택선 n개 → 출력 1 (switch문). DEMUX = 1 → 2ⁿ","calc":"선택선 n개로 2ⁿ개 중 하나를 가리킴","prereq":[13],"next":[34,37],"exam":{"prob":50,"types":["mcq","figure"],"refs":["020~023"]},"warn":false},{"id":15,"title":"음수 표현 3가지·범위","stars":4,"root":false,"chapter":4,"why":"부호를 비트로 어떻게 나타낼지 정해야 해","core":"부호화 절대치(맨 앞 부호 + 크기, 0이 2개) / 1의 보수(전부 뒤집기, 0이 2개) / 2의 보수(1의 보수 + 1, 0이 1개). −3(4비트): 1011 / 1100 / 1101. 8비트 범위: 앞 둘 −127~127, 2의 보수 −128~127","calc":"2의 보수는 0이 하나뿐이라 남는 칸 하나가 음수 쪽(−128)으로 감. n비트 −2ⁿ⁻¹ ~ 2ⁿ⁻¹−1","prereq":[4],"next":[16,20],"exam":{"prob":45,"types":["mcq","essay","calc"],"refs":["035"]},"warn":false},{"id":16,"title":"2의 보수 뺄셈","stars":3,"root":false,"chapter":4,"why":"뺄셈 회로를 따로 만들기 싫어","core":"A − B = A + (B의 2의 보수) → 가산기 하나로 덧셈·뺄셈 다 함. 맨 앞으로 넘친 캐리는 버림","calc":"x + (x의 2의 보수) = 2ⁿ → n비트를 넘쳐서 0이 됨 → 그래서 −x 역할","prereq":[15,12],"next":[17,19],"exam":{"prob":null,"types":[],"refs":[],"raw":"보수 문제에 섞여 출제"},"warn":false},{"id":17,"title":"오버플로·상태 플래그","stars":3,"root":false,"chapter":4,"why":"n비트 칸을 넘는 결과는 틀린 값이니까 알려줘야 해","core":"Z = 결과 0, S = 음수, C = 올림, V = 오버플로(양+양=음, 음+음=양). 자바 Integer.MAX_VALUE + 1이 음수 되는 그거","calc":"V = 부호비트로 들어간 캐리 XOR 나온 캐리","prereq":[16],"next":[],"exam":{"prob":25,"types":["mcq","essay"],"refs":["060","066","060","066"]},"warn":true},{"id":18,"title":"시프트 연산","stars":2,"root":false,"chapter":4,"why":"곱셈·나눗셈을 빠르게 하고 싶어","core":"왼쪽 1칸 = ×2, 오른쪽 1칸 = ÷2. 산술 시프트는 부호 비트 유지","calc":"자리값이 한 칸마다 2배라서","prereq":[3],"next":[19,20,29],"exam":{"prob":20,"types":["mcq"],"refs":["036"]},"warn":false},{"id":19,"title":"곱셈·나눗셈 (부스 알고리즘)","stars":2,"root":false,"chapter":4,"why":"곱셈을 덧셈 반복으로 하면 너무 느려","core":"곱셈 = 시프트 + 덧셈, 나눗셈 = 시프트 + 뺄셈. 부스 = 2의 보수 곱셈: 비트쌍(Q₀, Q₋₁)이 10이면 A−M, 01이면 A+M, 00·11이면 그대로 → 산술 오른쪽 시프트","calc":"","prereq":[18,16],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":20,"title":"부동소수점 (IEEE 754)","stars":3,"root":false,"chapter":4,"why":"고정소수점은 아주 큰 수·아주 작은 수를 못 담아","core":"과학 표기법처럼 1.xxx × 2^e로 정규화. float = 부호 1 · 지수 8 · 가수 23(바이어스 127), double = 1 · 11 · 52(바이어스 1023). 지수칸 = e + 바이어스, 가수칸 = '1.' 뒤만(숨은 1). 6.5 = 0 | 10000001 | 1010…","calc":"바이어스를 더해 지수를 늘 양수로 저장 → 정수처럼 크기 비교. 범위 문제는 해결, 0.1 오차는 못 고침 → 돈은 BCD·BigDecimal","prereq":[5,15,18],"next":[],"exam":{"prob":30,"types":["mcq","essay","calc"],"refs":[]},"warn":false},{"id":21,"title":"코드 종류 (BCD·3초과·그레이·ASCII·EBCDIC)","stars":3,"root":false,"chapter":4,"why":"계산용 2진수 말고도 10진 숫자·문자·센서 값을 비트로 약속해야 해","core":"BCD = 10진 한 자리를 4비트로(8421) / 3초과 = BCD + 3, 자보수 코드 / 그레이 = 이웃한 수끼리 1비트만 다름(센서 오류↓) / ASCII 7비트 / EBCDIC 8비트(존 4 + 숫자 4)","calc":"그레이 → 2진 = 왼쪽부터 XOR 누적 / 2진 → 그레이 = 옆 비트와 XOR","prereq":[4,7],"next":[22],"exam":{"prob":25,"types":["mcq","calc"],"refs":["038","039","모의2-05"]},"warn":false},{"id":22,"title":"팩/언팩 10진수","stars":2,"root":false,"chapter":4,"why":"돈 계산은 10진수 그대로 정확해야 해","core":"팩 = 1바이트에 숫자 2개, 부호는 맨 끝 4비트(+ 1100 C, − 1101 D, F 부호 없음) / 언팩(존) = 1바이트에 숫자 1개 + 존 1111, 부호는 마지막 바이트 존 자리. 팩 = 계산용, 언팩 = 입출력용","calc":"바이트를 다 채워야 해서 남으면 0000으로 채움","prereq":[21],"next":[],"exam":{"prob":20,"types":["mcq"],"refs":["045","046"]},"warn":false},{"id":23,"title":"패리티·해밍 코드","stars":2,"root":false,"chapter":4,"why":"전송 중에 비트가 뒤집힐 수 있어","core":"패리티 = 1의 개수를 짝수(홀수)로 맞추는 비트 1개 → 검출만. 해밍 = 패리티 여러 개(1·2·4·8번 자리)로 위치까지 찾아 정정","calc":"2ᵖ ≥ n + p + 1: p비트로 '오류 없음 1가지 + 오류 위치 n+p가지'를 다 가리켜야 함 → 8비트면 p = 4","prereq":[7],"next":[62],"exam":{"prob":20,"types":["mcq","essay","calc"],"refs":["033"]},"warn":false},{"id":24,"title":"클록","stars":3,"root":true,"chapter":5,"why":"회로들이 제각각 다른 때 바뀌면 엉켜","core":"일정하게 0·1을 반복하는 박자 신호. 1초 반복 횟수 = 주파수(Hz), 1GHz = 1초에 10⁹번, 주기 = 1/주파수. CPU 실행을 시작·정지시키는 신호","calc":"주기 = 1 ÷ 주파수 → 성능 계산의 뿌리","prereq":[3],"next":[25,27,45,48],"exam":{"prob":15,"types":["mcq"],"refs":["모의2-06"]},"warn":false},{"id":25,"title":"순차회로·동기/비동기","stars":3,"root":false,"chapter":5,"why":"조합회로는 결과를 담아 둘 수 없어","core":"출력 = 입력 + 이전 상태 (필드 가진 객체). 동기식 = 클록에 맞춰 바뀜 / 비동기식 = 입력이 바뀌면 바로. 책 기준: 동기식은 느리고 안정·설계 쉬움, 비동기는 빠르지만 불안정·설계 어려움","calc":"","prereq":[11,24],"next":[26,47],"exam":{"prob":35,"types":["mcq"],"refs":["016","017","017"]},"warn":true},{"id":26,"title":"래치","stars":3,"root":false,"chapter":5,"why":"출력을 다시 입력으로 돌리면(피드백) 값이 붙잡혀","core":"가장 단순한 1비트 기억 회로. 클록 없이 입력이 바뀌면 바로 바뀜(SR 래치)","calc":"","prereq":[25],"next":[27],"exam":{"prob":null,"types":[],"refs":["모의2-03"],"raw":"플립플롭과 비교로 출제 · 모의2-03"},"warn":false},{"id":27,"title":"플립플롭 (SR·JK·D·T)","stars":5,"root":false,"chapter":5,"why":"래치는 아무 때나 바뀌어서 박자가 안 맞아 → 클록 순간에만 바뀌게","core":"1비트 기억(boolean 필드 1개), 클록 필요. 입력 00·01·10·11 순서로 SR = 유지·0·1·금지 / JK = 유지·0·1·반전 / D = 입력 그대로 / T = 0 유지, 1 반전","calc":"JK = SR의 금지(11)를 '반전'으로 쓸모 있게 고친 것, T = JK의 두 입력을 묶은 것","prereq":[26,24],"next":[28,29,30,32],"exam":{"prob":50,"types":["mcq"],"refs":["009","018","019","029","모의2-03"]},"warn":false},{"id":28,"title":"특성표·상태표·여기표 (공식 범위의 '순서도')","stars":2,"root":false,"chapter":5,"why":"순차회로는 이전 상태가 있어서 진리표만으로는 부족해","core":"특성표 = 현재 상태 + 입력 → 다음 상태 / 여기표 = 원하는 변화를 만들 입력(거꾸로) / 상태도 = 그림. 조합회로 = 진리표, 순차회로 = 특성표·상태표·특성방정식","calc":"","prereq":[27],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":["009","019"]},"warn":false},{"id":29,"title":"레지스터·시프트 레지스터","stars":3,"root":true,"chapter":5,"why":"1비트 말고 n비트를 한꺼번에 저장해야 해","core":"n비트 레지스터 = 플립플롭 n개. 시프트 레지스터 = 비트를 옆으로 밀어 ×2·÷2, 직렬 ↔ 병렬 변환","calc":"","prereq":[27,18],"next":[30,31,34,70],"exam":{"prob":20,"types":["mcq"],"refs":["036"]},"warn":false},{"id":30,"title":"카운터","stars":3,"root":false,"chapter":5,"why":"클록 개수를 세야 해 (타이머, 주소 증가)","core":"비동기(리플) = 앞 플립플롭 출력이 뒤 클록, 회로 간단·전달 지연 큼 / 동기 = 공통 클록, 빠름·회로 복잡. mod-N 카운터 = 플립플롭 ⌈log₂N⌉개","calc":"플립플롭 k개 = 2ᵏ가지 상태 → N가지를 세려면 2ᵏ ≥ N (mod-10 → 4개)","prereq":[27,29],"next":[],"exam":{"prob":35,"types":["mcq","essay"],"refs":["010","030"]},"warn":false},{"id":31,"title":"기억장치 특성·접근 방식","stars":3,"root":false,"chapter":6,"why":"많이 저장할 장치가 필요한데 속도·가격·성질이 다 달라","core":"휘발성(전원 끄면 사라짐, RAM) / 비휘발성(ROM·디스크). 접근 방식: 순차(테이프)·직접(디스크)·임의(RAM)·연관(내용으로 찾기, 캐시)","calc":"","prereq":[29],"next":[32,33,52,60],"exam":{"prob":30,"types":["mcq"],"refs":[]},"warn":false},{"id":32,"title":"SRAM vs DRAM","stars":4,"root":false,"chapter":6,"why":"주기억과 캐시에 쓸 RAM이 두 종류야","core":"SRAM = 플립플롭, 빠르고 비쌈, 리프레시 X → 캐시 / DRAM = 커패시터(축전기) 전하, 방전돼서 주기적으로 리프레시, 싸고 집적도 높음 → 주기억","calc":"축전기는 전하가 새니까 주기적으로 다시 채워야 함","prereq":[31,27],"next":[52,54],"exam":{"prob":35,"types":["mcq"],"refs":["071"]},"warn":false},{"id":33,"title":"ROM 종류","stars":3,"root":false,"chapter":6,"why":"전원이 꺼져도 남아야 하는 게 있어 (부팅 BIOS, 제어 메모리)","core":"마스크 ROM(공장에서 씀) → PROM(1번 쓰기) → EPROM(자외선으로 지움) → EEPROM(전기로 지움) → 플래시(블록 단위로 전기 지움, SSD·USB). 마이크로명령 저장 = ROM","calc":"","prereq":[31],"next":[47,61],"exam":{"prob":35,"types":["mcq"],"refs":["068"]},"warn":false},{"id":34,"title":"CPU 구성","stars":3,"root":true,"chapter":7,"why":"부품(가산기·레지스터·MUX)을 엮어 계산기를 완성해","core":"ALU(가산기 + 논리 게이트) + 레지스터 + 제어장치 + 내부 버스(MUX로 길 선택)","calc":"","prereq":[12,29,14,1],"next":[35,37,52,132],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":35,"title":"레지스터 역할","stars":4,"root":false,"chapter":7,"why":"CPU 안의 레지스터마다 맡은 일이 있어 (지역변수처럼 제일 빠름)","core":"PC = 다음 명령 주소(실행되면 +1) / IR = 지금 명령 / MAR = 메모리 주소 / MBR = 메모리 데이터 / AC = 누산기 / SP = 스택 꼭대기 / 플래그(상태) 레지스터","calc":"","prereq":[34],"next":[36,38,43,45],"exam":{"prob":45,"types":["mcq"],"refs":["모의1-06","모의2-07"]},"warn":false},{"id":36,"title":"메모리 용량 → MAR·MBR 비트 수","stars":3,"root":false,"chapter":7,"why":"메모리 크기가 정해지면 레지스터 크기도 정해져","core":"2ⁿ 워드 → MAR n비트, MBR = 1워드 비트. 1024×16 → 10·16 / 8192×32 → 13·32","calc":"MAR은 칸 번호라서 2ⁿ칸이면 n비트(디코더 n → 2ⁿ으로 한 칸 선택), MBR은 한 칸 내용을 통째로 담음","prereq":[35,13],"next":[],"exam":{"prob":25,"types":["mcq","essay","calc"],"refs":["067","070"]},"warn":false},{"id":37,"title":"시스템 버스","stars":3,"root":false,"chapter":7,"why":"CPU·메모리·I/O를 일일이 선으로 이으면 선이 폭발해 → 공용 도로","core":"주소 버스(단방향, CPU → 밖) + 데이터 버스(양방향) + 제어 버스(읽기·쓰기 신호). 주소선 n개 = 2ⁿ 주소","calc":"주소선 개수 = MAR 비트 수와 같은 원리","prereq":[34,14],"next":[63,64,68],"exam":{"prob":25,"types":["mcq"],"refs":["모의2-24"]},"warn":false},{"id":38,"title":"명령어 구성","stars":2,"root":false,"chapter":7,"why":"CPU에게 일을 시키는 문장 형식이 필요해","core":"명령어 = 연산코드(무엇을) + 피연산자/주소(무엇으로)","calc":"","prereq":[35],"next":[39,40],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":39,"title":"명령어 종류","stars":3,"root":false,"chapter":7,"why":"CPU가 하는 일은 결국 몇 종류로 나뉘어","core":"데이터 전달(LOAD = 메모리 → 레지스터, STORE = 레지스터 → 메모리, MOV) / 산술(ADD) / 논리(AND·OR·CMA 보수) / 분기(JMP·BUN·CALL) / 기타(입출력·HALT)","calc":"","prereq":[38],"next":[71],"exam":{"prob":30,"types":["mcq"],"refs":["011","051"]},"warn":false},{"id":40,"title":"명령어 형식 (0~3주소)","stars":4,"root":false,"chapter":7,"why":"명령어 길이는 한정돼 있어 → 주소 칸을 몇 개 넣을지 골라야 해","core":"3주소 R1 = R2 + R3 / 2주소 R1 = R1 + R2 / 1주소 = 누산기(AC) 사용 / 0주소 = 스택. 주소 많음 → 프로그램 짧음, 명령어 길고 복잡 / 적음 → 명령 빠름, 프로그램 김","calc":"","prereq":[38],"next":[41,43],"exam":{"prob":40,"types":["mcq"],"refs":["054","057","모의2-08"]},"warn":false},{"id":41,"title":"스택","stars":3,"root":false,"chapter":7,"why":"0주소 명령어와 함수 호출은 '가장 최근 것'을 꺼내야 해","core":"LIFO, PUSH·POP, SP가 꼭대기를 가리킴. 함수 호출 때 지역변수·매개변수·복귀주소 저장(전역변수는 데이터 영역) = JVM 콜스택","calc":"","prereq":[40],"next":[42,46,66,79,144],"exam":{"prob":30,"types":["mcq"],"refs":["공식 예시02"]},"warn":false},{"id":42,"title":"후위·전위 표기","stars":3,"root":false,"chapter":7,"why":"괄호·우선순위를 스택 하나로 처리하려고 만든 표기야","core":"피연산자 순서는 그대로, 연산자만 자기 괄호 뒤(후위)·앞(전위)으로. 스택 연산 횟수 = PUSH(피연산자 수) + 연산자 수 + POP 1","calc":"후위는 숫자 나오면 PUSH, 연산자 나오면 2개 POP해서 계산 후 PUSH → 괄호가 필요 없음","prereq":[41],"next":[],"exam":{"prob":30,"types":["mcq","essay"],"refs":["053","055","예시02-2","356"]},"warn":true},{"id":43,"title":"주소 지정 방식","stars":5,"root":false,"chapter":7,"why":"주소 칸 비트가 적어서 큰 메모리를 다 못 가리켜 + 상수·배열·점프마다 필요한 게 달라","core":"즉치(값 자체) / 직접(주소) / 간접(주소의 주소, 메모리 2번) / 레지스터(레지스터에 값) / 레지스터 간접(레지스터에 주소) / 상대(PC + 변위, 점프) / 베이스(베이스 레지스터 + 변위, 어디 적재돼도 실행) / 인덱스(주소 + 인덱스 레지스터, 배열) / 묵시적(스택). 속도: 즉치가 가장 빠르고, 보기에 없으면 레지스터 > 직접 > 레지스터 간접 > 간접(교재 056)","calc":"메모리 접근 횟수가 적을수록 빠름","prereq":[40,35],"next":[44,46,51,75],"exam":{"prob":65,"types":["mcq","essay"],"refs":["052","056","모의1-07","모의2-09"]},"warn":false},{"id":44,"title":"유효주소 계산","stars":2,"root":false,"chapter":7,"why":"방식마다 진짜 주소(유효주소)를 계산하는 법이 달라","core":"상대 EA = PC + 변위 / 베이스 EA = 베이스 레지스터 + 변위 / 인덱스 EA = 주소 필드 + 인덱스 레지스터","calc":"PC는 이미 다음 명령을 가리키고 있다는 점을 주의","prereq":[43],"next":[],"exam":{"prob":15,"types":["essay","calc"],"refs":[]},"warn":false},{"id":45,"title":"마이크로연산","stars":3,"root":true,"chapter":7,"why":"명령어 하나도 사실은 레지스터 사이의 작은 이동 여러 개야","core":"한 클록에 하는 레지스터 전송 1개. 예: MAR ← PC","calc":"","prereq":[35,24],"next":[46],"exam":{"prob":null,"types":[],"refs":["058"],"raw":"교재 058 (어느 사이클인지 맞히기)"},"warn":false},{"id":46,"title":"명령어 사이클 4단계","stars":5,"root":false,"chapter":7,"why":"CPU는 명령어를 처리하는 같은 루프를 계속 돌아","core":"인출 → 간접 → 실행 → 인터럽트. 인출: MAR ← PC, MBR ← M[MAR], PC ← PC+1, IR ← MBR. 간접 = 간접 주소면 진짜 주소를 가져옴. 인터럽트 = 요청 있으면 PC를 스택에 저장하고 ISR 주소로(→ 66 인터럽트에서 완성). 메이저 스테이트 레지스터 = 지금 어느 사이클인지 저장","calc":"간접 사이클은 간접 주소 지정일 때만 생김(주소의 주소라 메모리를 한 번 더 읽음)","prereq":[45,43,41],"next":[47,48,49,66],"exam":{"prob":50,"types":["mcq","essay"],"refs":["058","063","013","모의1-22"]},"warn":false},{"id":47,"title":"제어장치: 하드와이어드 vs 마이크로프로그램","stars":4,"root":false,"chapter":7,"why":"명령어마다 어떤 마이크로연산을 어떤 순서로 할지 신호를 만들어야 해","core":"하드와이어드 = 디코더·순차·조합회로로 직접 신호, 빠름·변경 어려움(RISC) / 마이크로프로그램 = 제어 메모리(ROM)에 마이크로명령 저장, CAR(제어 주소 레지스터)로 읽음, 느림·변경 쉬움(CISC). if문 하드코딩 vs 설정 테이블. CAR 주소 결정: 증가 → 분기 → 제어주소 접근 → 서브루틴","calc":"","prereq":[46,13,33,25],"next":[51],"exam":{"prob":40,"types":["mcq","figure"],"refs":["012","059","062","068"]},"warn":false},{"id":48,"title":"CPU 성능 계산 (클럭·CPI·IPC·MIPS)","stars":5,"root":false,"chapter":7,"why":"CPU끼리 비교하려면 숫자가 필요해","core":"CPU 시간 = 명령어 수 × CPI ÷ 클럭 주파수. CPI = 명령어당 클록 수, IPC = 1/CPI, MIPS = 클럭(MHz) ÷ CPI. 성능↑ = 클럭·IPC·코어 수·파이프라인 (레지스터 크기는 아님)","calc":"명령어 1개에 CPI클록, 1클록 = 1/주파수 초. 공식 예시: 10만 개 × 1클록 ÷ 0.001초 = 10⁸Hz = 100MHz","prereq":[24,46],"next":[49],"exam":{"prob":35,"types":["essay","calc"],"refs":["공식 예시07(주관식)","064","모의1-05"]},"warn":false},{"id":49,"title":"파이프라인·클록 수","stars":5,"root":false,"chapter":7,"why":"인출·해독·실행 담당이 서로 기다리며 놀고 있어 → 빨래처럼 겹쳐 돌리자","core":"k단계, n개 명령 → k + (n−1) 클록(없으면 k × n). 장점 = 실행시간 단축(처리율↑). 명령어 1개 걸리는 시간은 안 줄어듦","calc":"첫 명령은 k단계를 다 지나야 나오고(k), 그 뒤로는 매 클록 1개씩 나옴(n−1)","prereq":[46,48],"next":[50,51,128,129],"exam":{"prob":55,"types":["mcq","essay","calc"],"refs":["공식 예시04","065"]},"warn":false},{"id":50,"title":"해저드 3종·해결","stars":4,"root":false,"chapter":7,"why":"겹쳐 돌리다 보면 앞 명령 때문에 멈춰야 하는 순간이 생겨","core":"구조적(같은 자원 동시 사용) / 데이터(앞 명령 결과가 필요) / 제어(분기라 다음 명령을 모름). 해결: 스톨(대기), 전방 전달(결과 바로 넘김), 분기 예측, 지연 분기","calc":"","prereq":[49],"next":[],"exam":{"prob":45,"types":["mcq","essay"],"refs":["157","160","모의1-18"]},"warn":false},{"id":51,"title":"RISC vs CISC","stars":5,"root":false,"chapter":7,"why":"CISC는 명령어가 많고 길이가 제각각이라 파이프라인에 안 맞아 → 자주 쓰는 단순 명령만 남기자","core":"RISC = 명령 적음·고정 길이·주소 방식 적음·레지스터 많음·하드와이어드·파이프라인 유리(ARM) / CISC = 명령 많음·가변 길이·주소 방식 많음·마이크로프로그램·하위 호환(인텔 386·486·펜티엄). 자바로 치면 작은 메서드 조합 vs 거대 만능 메서드","calc":"RISC 특징은 전부 '파이프라인에 맞추려고'에서 나옴","prereq":[49,47,43],"next":[],"exam":{"prob":50,"types":["mcq","essay"],"refs":["공식 예시03"]},"warn":false},{"id":52,"title":"기억장치 계층 구조","stars":3,"root":false,"chapter":8,"why":"CPU와 메모리 속도 차이가 너무 커, 빠른 건 비싸","core":"레지스터 > 캐시 > 주기억 > 보조기억 (위로 갈수록 빠르고·비싸고·작음). 보조기억은 레지스터와 직접 통신 X, 주기억을 거침","calc":"","prereq":[32,31,34],"next":[53,54],"exam":{"prob":30,"types":["mcq"],"refs":["응용05-1"]},"warn":false},{"id":53,"title":"지역성","stars":2,"root":true,"chapter":8,"why":"작은 캐시로도 효과가 나는 이유가 있어야 해","core":"시간 지역성 = 방금 쓴 걸 또 씀(반복문) / 공간 지역성 = 근처 주소를 곧 씀(배열)","calc":"","prereq":[52],"next":[54,117],"exam":{"prob":20,"types":["mcq"],"refs":[]},"warn":false},{"id":54,"title":"캐시 동작 원리","stars":4,"root":true,"chapter":8,"why":"자주 쓰는 걸 CPU 가까이에 복사해 두자 (DB 앞 Redis)","core":"CPU가 캐시를 먼저 확인 → 있으면 적중, 없으면 실패 → 주기억에서 블록 단위로 가져옴. 태그(어느 블록인지)·유효 비트·갱신 비트. 캐시는 주기억보다 작음(SRAM)","calc":"","prereq":[53,52,32],"next":[55,56,59,110,129],"exam":{"prob":null,"types":[],"refs":["077","모의2-25"],"raw":"교재 077 모의2-25"},"warn":false},{"id":55,"title":"캐시 평균 접근 시간","stars":3,"root":false,"chapter":8,"why":"캐시가 있으면 평균적으로 얼마나 빨라지는지 계산해야 해","core":"동시(병렬) = H×Tc + (1−H)×Tm / 순차(직렬) = Tc + (1−H)×Tm. 캐시 10ns, 메모리 100ns, 적중률 0.9 → 19ns / 20ns","calc":"동시는 캐시와 메모리를 같이 찾아서 실패면 메모리 시간만 걸림, 순차는 캐시를 먼저 보고 실패면 메모리 시간이 더해짐","prereq":[54],"next":[],"exam":{"prob":25,"types":["essay","calc"],"refs":[]},"warn":false},{"id":56,"title":"캐시 사상 3방식","stars":5,"root":false,"chapter":8,"why":"주기억 블록이 캐시 자리보다 훨씬 많아 → 어디에 넣을지 규칙이 필요해","core":"직접 = 블록번호 mod 라인 수로 자리 고정(간단·빠름·교체 알고리즘 X·충돌로 적중률↓) / 완전 연관 = 아무 자리나(적중률 최고·태그 전부 비교·교체 알고리즘 O) / 집합 연관 = 집합은 고정, 집합 안에선 아무 데나(절충). 적중률 직접 < 집합 < 완전","calc":"","prereq":[54],"next":[57,58],"exam":{"prob":60,"types":["mcq","essay"],"refs":["075","076","083","084","086","모의1-08","모의2-10"]},"warn":false},{"id":57,"title":"캐시 주소 필드","stars":2,"root":false,"chapter":8,"why":"사상 방식에 따라 주소를 어떻게 잘라 쓰는지 정해져","core":"주소 = 태그 | 라인(세트) | 워드. 워드 비트 = log₂(블록 크기), 라인 비트 = log₂(라인 수), 세트 비트 = log₂(라인 수 ÷ 웨이), 태그 = 나머지. 16비트 주소, 블록 16B, 128라인 → 직접 5|7|4, 4-way 7|5|4, 완전 연관 12|4","calc":"주소를 '블록 안 몇 번째(워드) / 캐시 몇 번 자리(라인) / 그 자리 후보 중 누구(태그)'로 나눠 쓰니까","prereq":[56,3],"next":[],"exam":{"prob":15,"types":["essay","calc"],"refs":[]},"warn":false},{"id":58,"title":"캐시 교체 알고리즘","stars":2,"root":false,"chapter":8,"why":"연관·집합 연관은 꽉 차면 누굴 뺄지 정해야 해","core":"LRU(가장 오래 안 씀) / FIFO(먼저 들어옴) / LFU(가장 적게 씀) / 랜덤. 직접 사상은 자리가 정해져 있어서 필요 없음","calc":"","prereq":[56],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":59,"title":"캐시 쓰기 정책","stars":4,"root":false,"chapter":8,"why":"캐시 값을 바꾸면 주기억과 달라져 → 언제 맞출지","core":"write-through = 캐시와 주기억에 동시에(항상 일치, 쓰기 느림) / write-back = 캐시만 바꾸고 쫓겨날 때 주기억에(빠름, 불일치 가능, 갱신 비트 필요)","calc":"","prereq":[54],"next":[130],"exam":{"prob":35,"types":["mcq"],"refs":["069","모의1-09"]},"warn":false},{"id":60,"title":"자기디스크 구조·접근시간","stars":3,"root":false,"chapter":9,"why":"대용량을 싸게 저장하려면 회전하는 원판이 필요했어","core":"플래터(원판) → 트랙(동심원) → 섹터(트랙 조각, 주소 최소 단위, 포맷 때 설정, 보통 512B), 실린더(같은 위치 트랙 묶음). 접근시간 = 탐색시간(헤드를 트랙으로) + 회전지연(섹터가 올 때까지) + 전송","calc":"평균 회전지연 = 반 바퀴. 7200rpm → 1회전 8.33ms → 4.17ms","prereq":[31],"next":[62,118,119,120],"exam":{"prob":30,"types":["mcq","essay","calc"],"refs":["모의1-10","모의1-25","모의2-11","모의1-10"]},"warn":true},{"id":61,"title":"SSD","stars":2,"root":false,"chapter":9,"why":"디스크는 기계 부품이라 느리고 충격에 약해","core":"플래시 메모리 → 빠름·무소음·저전력·가볍고 충격에 강함","calc":"","prereq":[33],"next":[],"exam":{"prob":20,"types":["mcq"],"refs":["074","모의2-12"]},"warn":false},{"id":62,"title":"RAID","stars":4,"root":false,"chapter":9,"why":"디스크 1개는 느리고 고장 나면 끝이야 → 여러 개를 묶자","core":"0 = 스트라이핑(나눠 씀, 빠름, 100%, 하나 죽으면 다 죽음) / 1 = 미러링(복제, 50%) / 5 = 패리티 분산(n−1개분) / 6 = 패리티 2개(n−2개분, 디스크 가장 많이 필요) / 10 = 미러링 + 스트라이핑(50%). HW RAID(카드, 비쌈·빠름) / SW RAID(OS) / 하이브리드(메인보드 RAID BIOS). Redundant Array of Independent(Inexpensive) Disks","calc":"패리티가 디스크 1개분(5)·2개분(6)을 차지. 크기가 다르면 작은 디스크 기준","prereq":[60,23],"next":[],"exam":{"prob":45,"types":["mcq","essay","calc"],"refs":["072","073","078","080","082","085","087","모의1-11","072"]},"warn":true},{"id":63,"title":"I/O 제어기·인터페이스","stars":2,"root":true,"chapter":10,"why":"장치마다 속도·데이터 형식이 달라서 CPU가 직접 맞출 수 없어","core":"장치 제어기(컨트롤러)가 중간에서 맞춰 줌. 안에 데이터·상태·제어 레지스터와 버퍼가 있음","calc":"","prereq":[37],"next":[64,65],"exam":{"prob":null,"types":[],"refs":[],"raw":"입출력 노드들의 뿌리"},"warn":false},{"id":64,"title":"I/O 주소 지정: 분리형 vs 메모리 맵","stars":3,"root":false,"chapter":10,"why":"CPU가 장치 레지스터를 어떤 주소로 부를지 정해야 해","core":"분리형(isolated) = I/O 전용 주소 공간, IN·OUT 같은 전용 명령, 별도 제어선 / 메모리 맵 = 메모리 주소 일부를 I/O에 배정, 일반 LOAD·STORE 사용(메모리 공간이 줄어듦)","calc":"","prereq":[63,37],"next":[],"exam":{"prob":25,"types":["mcq"],"refs":["모의2-14"]},"warn":false},{"id":65,"title":"프로그램 I/O (폴링)","stars":2,"root":false,"chapter":10,"why":"가장 단순한 방법부터 시작했어","core":"CPU가 장치 상태 레지스터를 계속 확인(while 루프로 '끝났어?') → CPU 낭비","calc":"","prereq":[63],"next":[66],"exam":{"prob":20,"types":["mcq"],"refs":[]},"warn":false},{"id":66,"title":"인터럽트","stars":5,"root":false,"chapter":10,"why":"폴링은 CPU를 낭비해 → 장치가 끝나면 CPU를 툭 치게 하자 (이벤트 리스너 콜백)","core":"종류: 외부(전원·기계 고장·I/O 완료·타이머) / 내부 = 트랩(0으로 나누기·오버플로·잘못된 명령, 매번 같은 위치에서 발생) / SW = SVC(시스템 호출). 처리: 지금 명령을 마치고 → PC·상태를 스택에 저장 → 벡터에서 ISR(핸들러) 주소 → ISR 실행 → IRET로 복귀. 인터럽트 벡터 = Map<번호, 핸들러>","calc":"우선순위 전원 > 기계 고장 > 외부 > 입출력 > 프로그램 검사 > SVC. 전원이 나가면 나머지는 의미가 없으니까 1위. 인자 수 불일치는 컴파일 오류라 인터럽트 원인이 아님","prereq":[65,46,41],"next":[67,68,78,81,85,114,135],"exam":{"prob":60,"types":["mcq","essay"],"refs":["공식 예시01","088","092","097","098","모의1-22"]},"warn":false},{"id":67,"title":"인터럽트 우선순위 판별 (폴링·데이지 체인)","stars":2,"root":false,"chapter":10,"why":"인터럽트가 동시에 여러 개 오면 누구부터 처리할지 정해야 해","core":"SW 폴링 = 차례로 물어봄(느림, 우선순위 바꾸기 쉬움) / 데이지 체인 = HW 직렬 연결, CPU에 가까울수록 우선(빠름). 벡터 인터럽트 = 장치가 자기 ISR 번호를 직접 알려줌","calc":"","prereq":[66],"next":[],"exam":{"prob":20,"types":["mcq"],"refs":[]},"warn":false},{"id":68,"title":"DMA","stars":5,"root":false,"chapter":10,"why":"인터럽트 방식도 데이터 한 워드마다 CPU가 직접 옮겨 → 대용량이면 낭비","core":"DMA 제어기가 메모리와 직접 전송, 끝나면 인터럽트 한 번 (@Async 워커 + 콜백). BR(버스 요청) → BG(버스 승인) → 전송 → 완료 인터럽트. 사이클 스틸링 = CPU가 버스 안 쓰는 틈에 한 사이클씩 / 버스트 = 블록 다 보낼 때까지 버스 독점. DMA 레지스터 = 주소·워드 카운트·제어(인터럽트 레지스터 X)","calc":"","prereq":[66,37],"next":[69],"exam":{"prob":50,"types":["mcq"],"refs":["091","093","094","모의1-12","모의2-13","091","093"]},"warn":true},{"id":69,"title":"채널·IOP","stars":3,"root":false,"chapter":10,"why":"DMA도 전송할 때마다 CPU가 세팅해야 해 → 아예 I/O 전용 프로세서를 두자","core":"채널(IOP)이 I/O 프로그램을 스스로 실행. 셀렉터 = 고속 장치 1대씩·블록 / 멀티플렉서(바이트) = 저속 여러 대·바이트 / 블록 멀티플렉서 = 고속 여러 대·블록. 발전 순서 = 폴링 → 인터럽트 → DMA → 채널","calc":"","prereq":[68],"next":[],"exam":{"prob":35,"types":["mcq"],"refs":["089","090","095","095"]},"warn":true},{"id":70,"title":"직렬·병렬 전송, UART","stars":1,"root":false,"chapter":10,"why":"선 하나로 보내려면 병렬 데이터를 한 줄로 풀어야 해","core":"UART = 병렬 ↔ 직렬 변환(시프트 레지스터 이용)","calc":"","prereq":[29],"next":[],"exam":{"prob":10,"types":["mcq"],"refs":["099"]},"warn":false},{"id":71,"title":"언어 계층 (기계어 → 어셈블리 → 고급 언어)","stars":2,"root":true,"chapter":11,"why":"기계어(0과 1)는 사람이 쓸 수 없어","core":"어셈블리 = 기계어와 1:1인 기호(ADD, MOV) / 고급 언어 = 사람 말에 가까움(C, 자바)","calc":"","prereq":[39],"next":[72],"exam":{"prob":null,"types":[],"refs":[],"raw":"번역 노드들의 뿌리"},"warn":false},{"id":72,"title":"번역 과정·컴파일러 vs 인터프리터","stars":3,"root":false,"chapter":11,"why":"고급 언어를 기계어로 바꿔야 실행돼","core":"소스 → (전처리기) → 컴파일러 → 어셈블리 → 어셈블러 → 목적파일 → 링커 → 실행파일 → 로더 → 메모리. 컴파일러 = 전체를 한 번에 번역, 실행 빠름(javac) / 인터프리터 = 한 줄씩 번역·실행","calc":"","prereq":[71],"next":[73,76,77,138],"exam":{"prob":35,"types":["mcq","essay"],"refs":["모의2-01"]},"warn":false},{"id":73,"title":"어셈블러 1패스 vs 2패스","stars":4,"root":false,"chapter":11,"why":"아직 정의 안 된 기호(뒤에 나올 점프 레이블)를 먼저 쓸 수 있어 → 한 번 훑어서는 주소를 몰라","core":"2패스 = 1번째에 기호 테이블 만들고 2번째에 번역(기호 정의 전에 써도 됨, 작성 쉬움, 느리고 큼) / 1패스 = 한 번에(빠르고 작음, 작성 어려움). 어셈블러는 기계어와 1:1이라 번역기 중 가장 빠름","calc":"","prereq":[72],"next":[74],"exam":{"prob":40,"types":["mcq","essay"],"refs":["003","007","모의2-02"]},"warn":false},{"id":74,"title":"링커 정적 vs 동적","stars":3,"root":false,"chapter":11,"why":"프로그램은 여러 파일·라이브러리로 나뉘어 있어 → 합치고 외부 참조를 풀어야 해","core":"정적 = 라이브러리를 실행파일에 복사(빠름, 크고 메모리 낭비, 라이브러리 바뀌면 다시 링크) / 동적 = 실행할 때 연결(DLL·.so, 메모리 절약)","calc":"","prereq":[73],"next":[75],"exam":{"prob":30,"types":["mcq"],"refs":["005"]},"warn":false},{"id":75,"title":"로더 4기능·종류","stars":5,"root":false,"chapter":11,"why":"실행파일을 메모리 어디에 올리고 주소를 어떻게 맞출지 정해야 해 (자바 클래스로더)","core":"4기능 = 할당(자리 확보) · 연결(링킹) · 재배치(주소 고침) · 적재(실제로 올림). 종류: 컴파일 즉시(Compile and Go) / 절대(적재만, 나머지는 프로그래머) / 재배치 / 직접 연결(4기능 다) / 동적 적재 / 부트스트랩(전원 켜면 OS를 올림 = 부트로더)","calc":"","prereq":[74,43],"next":[78,104,127],"exam":{"prob":55,"types":["mcq","essay"],"refs":["001"]},"warn":false},{"id":76,"title":"이진 호환성 (ABI vs API)","stars":2,"root":false,"chapter":11,"why":"새 CPU·OS에서도 옛날 프로그램을 돌리고 싶어","core":"HW와 SW가 만나는 약속 = 명령어 집합(ISA), 같은 ISA면 같은 바이너리가 돌아감. ABI = 기계어(바이너리) 수준 약속(호출 규약·레지스터 사용) → 재컴파일 없이 실행 / API = 소스 수준 약속 → 재컴파일 필요. 하위 호환(인텔 x86)","calc":"","prereq":[72],"next":[],"exam":{"prob":20,"types":["mcq"],"refs":["149","151","149"]},"warn":true},{"id":77,"title":"시스템SW vs 응용SW·유틸리티","stars":1,"root":false,"chapter":11,"why":"소프트웨어도 역할로 나뉘어","core":"시스템 SW = OS·컴파일러·어셈블러·링커·로더 / 응용 SW = 사용자 업무 / 유틸리티 = 필수는 아니지만 편리(디스크 정리·백신)","calc":"","prereq":[72],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":["004"]},"warn":false},{"id":78,"title":"운영체제 역할·구성·성능 기준","stars":2,"root":false,"chapter":12,"why":"여러 프로그램·장치를 사람이 직접 관리할 수 없어 → 자원 관리자","core":"구성 = 커널(핵심) + 셸(명령어 해석기) + 유틸리티 / 제어 프로그램 + 처리 프로그램. 커널 모드·사용자 모드, 시스템 호출(SVC). 성능 기준 = 처리능력 · 반환시간 · 사용가능도 · 신뢰도","calc":"","prereq":[75,66],"next":[79,124,132,135,142],"exam":{"prob":20,"types":["mcq"],"refs":["146","148"]},"warn":false},{"id":79,"title":"프로세스·메모리 영역","stars":3,"root":false,"chapter":12,"why":"OS가 관리할 실행 단위가 필요해","core":"프로세스 = 실행 중인 프로그램(JVM 하나). 영역: 코드 / 데이터(전역·static) / 힙(new·malloc, 실행 중 크기 변함) / 스택(지역변수·매개변수·복귀주소, 크기는 컴파일 때 결정)","calc":"","prereq":[78,41],"next":[80,83,104],"exam":{"prob":25,"types":["mcq"],"refs":["110","137","모의1-23"]},"warn":false},{"id":80,"title":"PCB","stars":4,"root":false,"chapter":12,"why":"CPU를 뺏겼다가 다시 받을 때 어디까지 했는지 기억해야 해","core":"프로세스 제어 블록 = PID · 상태 · PC · 레지스터 · 메모리 정보 · 우선순위 · 입출력 정보","calc":"","prereq":[79],"next":[81,82],"exam":{"prob":40,"types":["mcq","essay"],"refs":["115","116","155"]},"warn":false},{"id":81,"title":"프로세스 상태 전이","stars":4,"root":false,"chapter":12,"why":"프로세스는 실행되다가 기다리다가 하며 상태가 바뀌어","core":"생성 → 준비 →(디스패치)→ 실행 →(타임아웃)→ 준비 / 실행 →(I/O 요청, block)→ 대기 →(I/O 완료, wake up)→ 준비 / 실행 → 종료. 보류(suspend) = 메모리 부족 시 swap-out → 보류 준비·보류 대기","calc":"","prereq":[80,66],"next":[82,84,126],"exam":{"prob":45,"types":["mcq","essay"],"refs":["103","모의1-14"]},"warn":false},{"id":82,"title":"문맥 교환","stars":4,"root":false,"chapter":12,"why":"CPU를 다른 프로세스에게 넘기려면 지금 상태를 저장해야 해","core":"실행 중인 프로세스 상태를 PCB에 저장 → 다음 프로세스 PCB를 불러옴. 발생: 인터럽트·타임아웃·I/O 요청 (인터럽트 '완료' 자체는 X). 이 동안은 실제 일을 못 함 = 오버헤드","calc":"","prereq":[80,81],"next":[83],"exam":{"prob":40,"types":["mcq"],"refs":["096","100","모의2-04"]},"warn":false},{"id":83,"title":"스레드","stars":5,"root":false,"chapter":12,"why":"프로세스는 무거워(메모리 따로, 문맥 교환 비쌈) → 한 프로세스 안에 실행 흐름을 여러 개","core":"스레드끼리 코드·데이터·힙 공유, 스택(+레지스터)만 따로 → 동기화 주의. 사용자 수준 = 라이브러리가 관리(빠름·이식성, 하나 막히면 전체 막힘) / 커널 수준 = OS가 관리(하나 막혀도 나머지 실행, 오버헤드) / 혼합형. 스레드 풀 = 미리 만들어 재사용(ExecutorService). 멀티 프로세스 = 안정성↑·메모리↑·IPC 필요","calc":"","prereq":[79,82],"next":[94],"exam":{"prob":50,"types":["mcq","essay"],"refs":["101","102","106","108","131","모의1-13","모의2-15~17"]},"warn":false},{"id":84,"title":"스케줄링 목적·지표","stars":3,"root":false,"chapter":13,"why":"준비 큐에 여럿이 있으면 누구에게 CPU를 줄지 정해야 해","core":"목적 = CPU 이용률·처리량↑, 반환·대기·응답시간↓, 공정. 반환시간 = 종료 − 도착, 대기시간 = 반환 − 실행, 응답시간 = 처음 CPU 받기까지. 스케줄링 시점 = 실행→대기, 실행→준비, 대기→준비, 종료","calc":"","prereq":[81],"next":[85,93],"exam":{"prob":null,"types":[],"refs":["모의1-26"],"raw":"모의1-26(주관식)"},"warn":false},{"id":85,"title":"선점 vs 비선점","stars":5,"root":false,"chapter":13,"why":"한 번 준 CPU를 뺏을 수 있게 할지부터 정해야 해","core":"비선점 = 끝나거나 스스로 놓을 때까지(FCFS·SJF·HRN, 책은 우선순위도 비선점) / 선점 = OS가 타이머 인터럽트로 뺏음(RR·SRT·MLQ·MFQ). 대기→준비 때 스케줄링하는 건 선점 방식뿐","calc":"","prereq":[84,66],"next":[86,89,90,133],"exam":{"prob":85,"types":["mcq"],"refs":["105","126","127","모의1-15"]},"warn":false},{"id":86,"title":"FCFS","stars":5,"root":false,"chapter":13,"why":"가장 단순하게, 온 순서대로","core":"먼저 온 순서로 실행. 콘보이 효과 = 긴 작업 뒤에 짧은 작업들이 줄줄이 기다림","calc":"","prereq":[85],"next":[87,89,92],"exam":{"prob":null,"types":[],"refs":["122","응용06-2"],"raw":"교재 122 응용06-2"},"warn":false},{"id":87,"title":"SJF (SPN)","stars":5,"root":false,"chapter":13,"why":"콘보이 효과 때문에 평균 대기가 길어 → 짧은 것부터","core":"실행시간이 가장 짧은 것 먼저, 비선점. 평균 대기시간 최소. 단점 = 실행시간을 미리 알아야 함, 긴 작업 기아(starvation)","calc":"","prereq":[86],"next":[88,90,92,119],"exam":{"prob":null,"types":[],"refs":["125","응용06-1"],"raw":"교재 125 응용06-1"},"warn":false},{"id":88,"title":"HRN","stars":5,"root":false,"chapter":13,"why":"SJF는 긴 작업이 영원히 밀려(기아) → 기다린 시간도 쳐주자","core":"우선순위 = (대기 + 실행) ÷ 실행, 큰 것 먼저, 비선점","calc":"오래 기다릴수록 분자가 커져서 언젠가는 반드시 뽑힘(에이징 효과)","prereq":[87],"next":[92],"exam":{"prob":null,"types":[],"refs":["132"],"raw":"교재 132"},"warn":false},{"id":89,"title":"RR (라운드 로빈)","stars":5,"root":false,"chapter":13,"why":"대화형 시스템은 모두가 조금씩 빨리 반응을 받아야 해","core":"시간 할당량(q)만큼 실행 후 큐 맨 뒤로. q가 크면 FCFS처럼, 작으면 문맥 교환 오버헤드↑","calc":"","prereq":[86,85],"next":[91,92],"exam":{"prob":null,"types":[],"refs":["공식 예시06(주관식)"],"raw":"공식 예시06(주관식)"},"warn":false},{"id":90,"title":"SRT (SRTN)","stars":5,"root":false,"chapter":13,"why":"SJF를 선점으로 만들면 더 짧아져","core":"남은 시간이 가장 짧은 것 먼저, 더 짧은 새 프로세스가 오면 뺏음. 평균 대기 최소, 오버헤드·예측 필요","calc":"","prereq":[87,85],"next":[92],"exam":{"prob":null,"types":[],"refs":["113"],"raw":"교재 113"},"warn":false},{"id":91,"title":"우선순위·MLQ·MFQ","stars":4,"root":false,"chapter":13,"why":"작업 종류마다 대우를 다르게 하고 싶어","core":"우선순위 = 높은 것 먼저(기아 → 에이징으로 해결) / MLQ(다단계 큐) = 종류별 큐 고정, 큐 사이 이동 X / MFQ(다단계 피드백 큐) = CPU 오래 쓰면 아래 큐로 이동, 실행시간 예측 불필요","calc":"","prereq":[89],"next":[],"exam":{"prob":null,"types":[],"refs":["118","모의1-15"],"raw":"교재 118 모의1-15"},"warn":false},{"id":92,"title":"스케줄링 계산 (간트 차트)","stars":5,"root":false,"chapter":13,"why":"시험은 결국 숫자로 물어봐","core":"간트 차트 그리기 → 종료 시각 → 반환 = 종료 − 도착 → 대기 = 반환 − 실행 → 평균. 공식 예시: A7·B6·C5, RR q=2 → B, C, A. P1(0,8)·P2(1,4)·P3(2,9)·P4(3,5) 평균 대기 → FCFS 8.75 / SJF 7.75 / SRT 6.5 / HRN 7.75 / RR(q=4) 11.75","calc":"대기 = 시스템에 있던 시간 중 일 안 한 시간이라서 반환 − 실행","prereq":[86,87,88,89,90],"next":[],"exam":{"prob":55,"types":["essay","calc"],"refs":[]},"warn":false},{"id":93,"title":"멀티프로세서 스케줄링","stars":2,"root":false,"chapter":13,"why":"CPU가 여러 개면 일을 어떻게 나눌지","core":"비대칭(마스터 하나가 결정) / 대칭 SMP(각 CPU가 스스로). 부하 균등화 = push(바쁜 CPU가 밀어냄)·pull(한가한 CPU가 가져옴). 프로세서 친화성 = 쓰던 CPU에서 계속(캐시 재사용)","calc":"","prereq":[84],"next":[129],"exam":{"prob":25,"types":["mcq"],"refs":["104","109"]},"warn":false},{"id":94,"title":"병행성·경쟁 조건","stars":3,"root":true,"chapter":14,"why":"두 스레드가 count++를 동시에 하면 값이 하나 덜 올라가","core":"경쟁 조건 = 실행 순서에 따라 결과가 달라지는 상황","calc":"","prereq":[83],"next":[95],"exam":{"prob":null,"types":[],"refs":[],"raw":"동기화 노드들의 뿌리"},"warn":false},{"id":95,"title":"임계구역·해결 3조건","stars":3,"root":false,"chapter":14,"why":"공유 자원을 건드리는 코드 구간을 보호해야 해","core":"임계구역 = 공유 자원을 다루는 코드 부분. 해결 3조건 = 상호배제(한 번에 하나만) · 진행(아무도 없으면 들어갈 수 있어야) · 한정 대기(무한정 기다리지 않음)","calc":"","prereq":[94],"next":[96,97],"exam":{"prob":35,"types":["mcq","essay"],"refs":[]},"warn":false},{"id":96,"title":"상호배제 HW 명령어","stars":2,"root":false,"chapter":14,"why":"SW만으로는 '확인하고 잠그는' 사이에 다른 스레드가 끼어들 수 있어","core":"읽기와 쓰기를 한 번에 하는 원자적 명령: Test-and-Set, Swap(Exchange). 바쁜 대기(스핀락)","calc":"","prereq":[95],"next":[97],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":97,"title":"세마포어·뮤텍스","stars":4,"root":false,"chapter":14,"why":"바쁜 대기는 CPU 낭비 → 기다리는 쪽을 재워 두자","core":"정수 변수 S. P(wait) = S−1, 음수면 대기 / V(signal) = S+1, 대기자 깨움. P·V는 원자적. 이진 세마포어(0·1) ≈ 뮤텍스(락, 잠근 쪽이 풂) / 계수 세마포어(n) = 자원 n개 동시. 자바 Semaphore acquire·release / synchronized","calc":"","prereq":[96,95],"next":[98,99,100],"exam":{"prob":40,"types":["mcq","essay"],"refs":[]},"warn":false},{"id":98,"title":"모니터","stars":2,"root":false,"chapter":14,"why":"세마포어는 P·V 순서 하나만 실수해도 교착·오류","core":"공유 데이터 + 연산 + 조건 변수(wait·signal)를 묶은 구조, 한 번에 한 프로세스만 진입. 자바 synchronized + wait·notify","calc":"","prereq":[97],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":99,"title":"고전 동기화 문제","stars":2,"root":false,"chapter":14,"why":"동기화 도구를 시험해 보는 대표 상황들이 있어","core":"생산자-소비자(유한 버퍼) / 판독자-기록자(읽기는 여럿 동시 OK, 쓰기는 혼자, 판독자 우선이면 기록자 기아) / 식사하는 철학자(교착 예시)","calc":"","prereq":[97],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":100,"title":"교착상태·4조건","stars":5,"root":false,"chapter":15,"why":"두 스레드가 서로 상대 락을 쥐고 synchronized 무한 대기","core":"4조건(넷 다 만족해야 발생) = 상호배제 · 점유와 대기 · 비선점 · 환형 대기. 기아 = 계속 밀림(언젠가는 가능) vs 교착 = 영원히 불가","calc":"","prereq":[97],"next":[101,102,103],"exam":{"prob":55,"types":["mcq","essay"],"refs":["121","130"]},"warn":false},{"id":101,"title":"교착 예방","stars":4,"root":false,"chapter":15,"why":"4조건 중 하나만 깨면 교착은 절대 안 생겨","core":"상호배제 부정(공유 가능 자원, 읽기 전용 파일) / 점유와 대기 부정(필요한 것 한꺼번에 요청) / 비선점 부정(뺏기 허용) / 환형 대기 부정(자원에 번호, 순서대로 요청). 단점 = 자원 낭비","calc":"","prereq":[100],"next":[],"exam":{"prob":null,"types":[],"refs":["123"],"raw":"교재 123"},"warn":false},{"id":102,"title":"교착 회피·은행원 알고리즘","stars":4,"root":false,"chapter":15,"why":"예방은 낭비가 심해 → 위험할 때만 안 주자","core":"할당 전에 안전 상태(모두 끝낼 순서가 있음)인지 검사, 불안전하면 대기. 필요 = 최대 − 보유, 가용 ≥ 필요인 것부터 끝내고 보유분 반납 → 반복. 가정: 프로세스·자원 수 고정, 최대 요구량을 미리 앎. 예: 12개, P0(최대 10, 보유 5)·P1(4, 2)·P2(9, 2) → 가용 3 → P1 → P0 → P2 = 안전","calc":"끝난 프로세스는 가진 걸 다 돌려주니까 가용이 점점 커짐","prereq":[100],"next":[],"exam":{"prob":45,"types":["mcq","essay","calc"],"refs":["114","117"]},"warn":false},{"id":103,"title":"교착 탐지·복구","stars":3,"root":false,"chapter":15,"why":"일단 허용하고, 생기면 찾아서 풀자","core":"탐지 = 자원 할당 그래프에서 사이클 검사 / 복구 = 프로세스 종료, 자원 선점(희생자 선정: 최소 비용, 롤백, 기아 방지)","calc":"","prereq":[100],"next":[],"exam":{"prob":null,"types":[],"refs":["120","130"],"raw":"교재 120 130"},"warn":false},{"id":104,"title":"주기억 관리 요구조건","stars":2,"root":false,"chapter":16,"why":"메모리 관리자가 지켜야 할 조건부터 정리해","core":"재배치 · 보호 · 공유 · 논리적 구성 · 물리적 구성","calc":"","prereq":[79,75],"next":[105],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":105,"title":"고정/동적 분할·단편화","stars":4,"root":false,"chapter":16,"why":"여러 프로세스를 메모리에 같이 올려야 해","core":"고정 분할 = 미리 정한 크기 → 내부 단편화(칸 안에 남는 공간) / 동적(가변) 분할 = 요청만큼 → 외부 단편화(조각난 빈 공간) → 압축(빈 공간 한쪽으로 모으기)·통합(이웃한 빈 공간 합치기)","calc":"","prereq":[104],"next":[106,107,108,111],"exam":{"prob":40,"types":["mcq"],"refs":[]},"warn":false},{"id":106,"title":"배치 전략","stars":4,"root":false,"chapter":16,"why":"동적 분할에서 어느 빈 공간에 넣을지","core":"최초 적합(처음 맞는 곳, 빠름) / 최적 적합(가장 딱 맞는 곳, 아주 작은 조각을 남김) / 최악 적합(가장 큰 곳) / 다음 적합(지난 위치부터)","calc":"","prereq":[105],"next":[],"exam":{"prob":40,"types":["mcq","essay"],"refs":["107","111","119","111"]},"warn":true},{"id":107,"title":"스와핑·쉐도잉·GC","stars":2,"root":false,"chapter":16,"why":"메모리가 모자라면 통째로 내렸다 올려","core":"스와핑 = 프로세스 통째로 메모리 ↔ 디스크(swap-in·out) / 쉐도잉 = 실행파일 전체를 주기억에 올림 / GC = 안 쓰는 동적 메모리 자동 회수","calc":"","prereq":[105],"next":[113],"exam":{"prob":25,"types":["mcq"],"refs":["103","135","136","139"]},"warn":false},{"id":108,"title":"페이징","stars":5,"root":false,"chapter":16,"why":"외부 단편화를 없애고 싶어 → 같은 크기로 잘라서 아무 빈칸에나","core":"메모리 = 프레임, 프로그램 = 페이지(같은 크기, 보통 4KB). 페이지 테이블 = Map<페이지번호, 프레임번호>. 외부 단편화 X, 마지막 페이지에 내부 단편화 O","calc":"","prereq":[105,3],"next":[109,112,113,137],"exam":{"prob":50,"types":["mcq","essay"],"refs":["응용05-2","079","081","079"]},"warn":true},{"id":109,"title":"페이징 주소 변환","stars":2,"root":false,"chapter":16,"why":"논리주소를 물리주소로 바꿔야 실제 메모리를 읽어","core":"논리주소 ÷ 페이지 크기 → 몫 = 페이지 번호, 나머지 = 오프셋 → 물리주소 = 프레임 번호 × 페이지 크기 + 오프셋. 1KB, 2500 → 페이지 2, 오프셋 452 → 프레임 5면 5572","calc":"페이지 크기가 2ᵏ면 주소 하위 k비트가 오프셋 그대로","prereq":[108],"next":[110],"exam":{"prob":15,"types":["essay","calc"],"refs":[]},"warn":false},{"id":110,"title":"TLB","stars":3,"root":false,"chapter":16,"why":"페이지 테이블이 메모리에 있어서 주소 변환마다 메모리를 한 번 더 읽어야 해","core":"TLB = 페이지 테이블 전용 캐시(연관 메모리). 적중이면 바로 프레임 번호","calc":"","prereq":[109,54],"next":[],"exam":{"prob":null,"types":[],"refs":[],"raw":"교재 0"},"warn":false},{"id":111,"title":"세그먼테이션","stars":3,"root":false,"chapter":16,"why":"프로그램은 코드·데이터·스택처럼 의미 단위로 나뉘어","core":"논리 단위·가변 크기로 자름. 세그먼트 테이블 = 번호 · 시작 주소(base) · 크기(limit). 공유·보호 쉬움, 외부 단편화","calc":"","prereq":[105],"next":[112],"exam":{"prob":35,"types":["mcq"],"refs":["138"]},"warn":false},{"id":112,"title":"페이징+세그먼테이션 혼용","stars":2,"root":false,"chapter":16,"why":"둘의 장점을 같이 쓰고 싶어","core":"세그먼트로 나누고 각 세그먼트를 다시 페이지로. 주소 변환 2번","calc":"","prereq":[111,108],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":113,"title":"가상 메모리","stars":4,"root":false,"chapter":16,"why":"프로그램이 실제 메모리보다 커","core":"필요한 페이지만 올림(요구 페이징). 각 프로그램은 가상 주소 사용 → MMU가 물리 주소로 변환","calc":"","prereq":[108,107],"next":[114],"exam":{"prob":null,"types":[],"refs":["081"],"raw":"교재 081"},"warn":false},{"id":114,"title":"페이지 부재 처리 순서","stars":3,"root":false,"chapter":16,"why":"필요한 페이지가 메모리에 없으면 가져와야 해","core":"① 트랩(OS 호출) → ② 빈 프레임 찾기(없으면 교체) → ③ 디스크에서 가져옴 → ④ 페이지 테이블 갱신 → ⑤ 명령 재시작. 공식 예시 정답 ㄹ-ㄴ-ㄱ-ㄷ","calc":"","prereq":[113,66],"next":[115],"exam":{"prob":25,"types":["mcq","essay"],"refs":["공식 예시05"]},"warn":false},{"id":115,"title":"페이지 교체 + 부재 횟수","stars":5,"root":false,"chapter":16,"why":"빈 프레임이 없으면 누굴 내보낼지 정해야 해","core":"FIFO(먼저 들어온 것) / LRU(가장 오래 안 쓴 것, LinkedHashMap accessOrder) / LFU(가장 적게 쓴 것) / OPT(앞으로 가장 오래 안 쓸 것, 미래를 알아야 해서 실제론 불가 → 비교 기준) / NUR(참조·변경 비트). 3프레임, 1 2 3 1 4 1 2 5 3 → FIFO 8 / LRU 7 / OPT 6","calc":"프레임 칸을 그리고 참조마다 적중(H)·부재(F)를 표시해서 F 개수를 셈","prereq":[114],"next":[116,117],"exam":{"prob":45,"types":["mcq","essay","calc"],"refs":[]},"warn":false},{"id":116,"title":"벨레이디 이상","stars":3,"root":false,"chapter":16,"why":"프레임을 늘렸는데 부재가 늘어나는 이상한 일이 있어","core":"FIFO에서만 생김. 1 2 3 4 1 2 5 1 2 3 4 5 → 3프레임 9번, 4프레임 10번. LRU·OPT는 안 생김","calc":"","prereq":[115],"next":[],"exam":{"prob":null,"types":[],"refs":[],"raw":"페이지 교체에 묶여 출제"},"warn":false},{"id":117,"title":"스래싱·워킹셋·PFF","stars":3,"root":false,"chapter":16,"why":"프로세스를 너무 많이 올리면 각자 프레임이 모자라","core":"스래싱 = 페이지 교체만 하느라 CPU 이용률 폭락. 워킹셋 = 일정 시간 자주 쓰는 페이지 집합(지역성 덕분) → 그만큼 프레임 보장. PFF = 부재 빈도를 보고 프레임 수 조절","calc":"","prereq":[115,53],"next":[],"exam":{"prob":30,"types":["mcq"],"refs":[]},"warn":false},{"id":118,"title":"순차 접근 vs 직접 접근 장치","stars":1,"root":false,"chapter":17,"why":"장치마다 데이터를 찾아가는 방식이 달라","core":"순차 = 자기 테이프(앞에서부터) / 직접 = 디스크(바로 찾아감)","calc":"","prereq":[60],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":119,"title":"디스크 스케줄링","stars":4,"root":false,"chapter":17,"why":"접근시간 중 탐색시간(헤드 이동)이 제일 커 → 이동을 줄이는 순서로","core":"FCFS(온 순서) / SSTF(가장 가까운 것, 기아 — SJF와 같은 발상) / SCAN(엘리베이터, 끝까지 갔다 반대로) / C-SCAN(한 방향만, 끝에서 처음으로 점프) / LOOK·C-LOOK(마지막 요청까지만). 0~99, 헤드 30, 요청 40 10 35 70 20 → FCFS 150 / SSTF 100 / SCAN↑ 158 / LOOK↑ 100 / C-SCAN↑ 89(점프 포함 188)","calc":"방문 순서대로 실린더 번호 차이의 절댓값을 더함","prereq":[60,87],"next":[],"exam":{"prob":40,"types":["mcq","essay","calc"],"refs":[]},"warn":false},{"id":120,"title":"파일 시스템·블로킹·버퍼링·스풀링","stars":2,"root":false,"chapter":17,"why":"디스크 I/O는 느리니까 횟수를 줄이고 속도 차이를 흡수해야 해","core":"블로킹 = 논리 레코드 여러 개를 물리 블록 하나로(I/O 횟수↓) / 버퍼링 = 임시 저장으로 속도 차이 흡수, 이중 버퍼링 / 스풀링 = 디스크를 큰 버퍼로(프린터)","calc":"","prereq":[60],"next":[121,122,123,124],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":121,"title":"파일 구조","stars":3,"root":false,"chapter":17,"why":"레코드를 어떤 순서로 저장해야 찾기 쉬울까","core":"순차 파일(차례대로) / 색인 순차(순차 + 색인, 순차·임의 둘 다 가능, 색인 공간 필요) / 직접(해시로 주소 계산, 빠름)","calc":"","prereq":[120],"next":[],"exam":{"prob":25,"types":["mcq"],"refs":["142"]},"warn":false},{"id":122,"title":"디스크 공간 할당","stars":4,"root":false,"chapter":17,"why":"파일을 디스크 블록 어디에 둘지","core":"연속 할당(이어서, 빠름·디렉터리 단순, 외부 단편화·크기 늘리기 어려움) / 연결 할당 = 섹터 단위·블록 체인(포인터로 줄줄이, 단편화 X, 순차 접근만, 포인터 깨지면 끝) / 블록 지향 파일 사상 = FAT(포인터를 표에 모음) / 색인 = 색인 블록 체인(목차 블록으로 직접 접근, 색인 블록 낭비)","calc":"","prereq":[120],"next":[125],"exam":{"prob":45,"types":["mcq"],"refs":["112","133","134","140","141","143","144","모의1-16","모의2-18"]},"warn":false},{"id":123,"title":"파일 접근 제어","stars":2,"root":false,"chapter":17,"why":"누가 어떤 파일을 읽고 쓸 수 있는지 정해야 해","core":"접근 제어 행렬(사용자 × 파일), 접근 제어 리스트(ACL), UNIX rwx","calc":"","prereq":[120],"next":[143],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":124,"title":"UNIX 특징","stars":4,"root":false,"chapter":18,"why":"이식성 좋은 OS가 필요했어","core":"대부분 C로 작성 → 이식성, 다중 사용자·다중 작업, 계층(트리) 파일 시스템, 장치도 파일처럼 취급, 커널 + 셸 + 유틸리티","calc":"","prereq":[78,120],"next":[125,126,127],"exam":{"prob":45,"types":["mcq"],"refs":[]},"warn":false},{"id":125,"title":"UFS 4블록·i-node","stars":4,"root":false,"chapter":18,"why":"파일 정보를 어디에 어떻게 둘지","core":"부트 블록(부팅 코드) · 슈퍼 블록(파일 시스템 전체 정보) · 아이노드 블록(파일마다 소유자·크기·권한·시간·데이터 블록 주소) · 데이터 블록. 파일·디렉터리의 모든 정보 = 아이노드","calc":"","prereq":[124,122],"next":[],"exam":{"prob":null,"types":[],"refs":["154","모의2-20"],"raw":"교재 154(주관식) 모의2-20"},"warn":false},{"id":126,"title":"UNIX 프로세스·장치 관리","stars":2,"root":false,"chapter":18,"why":"UNIX식 프로세스 생성과 장치 다루는 법","core":"fork = 자기 복제(자식 생성), exec = 다른 프로그램으로 교체, 프로세스 트리(init이 조상). 장치 = /dev의 장치 파일(블록 장치·문자 장치)","calc":"","prereq":[124,81],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":127,"title":"리눅스 커널·부팅·배포판","stars":3,"root":false,"chapter":18,"why":"UNIX를 본뜬 오픈소스 OS","core":"모놀리식 커널(기능 전부 커널 공간, 빠름) vs 마이크로 커널(핵심만 커널, 나머지 사용자 영역 — 맥 OS X·윈도 NT 계열). 부팅 = BIOS → 부트로더 → 커널 → init. 배포판 = 커널 + 프로그램 꾸러미(데비안·우분투)","calc":"","prereq":[124,75],"next":[134],"exam":{"prob":35,"types":["mcq"],"refs":["145","147","150","152","153","164","150"]},"warn":true},{"id":128,"title":"연산 파이프라인·슈퍼스칼라","stars":1,"root":false,"chapter":19,"why":"파이프라인 하나로는 한 클록에 명령 하나가 한계야","core":"연산 파이프라인 = 부동소수점 연산 자체를 단계로 나눔 / 슈퍼스칼라 = 파이프라인 여러 개로 한 클록에 여러 명령","calc":"","prereq":[49],"next":[],"exam":{"prob":10,"types":["mcq"],"refs":[]},"warn":false},{"id":129,"title":"멀티코어·공유메모리","stars":3,"root":false,"chapter":19,"why":"클록을 더 올리면 발열 한계 → 코어를 여러 개","core":"공유메모리 = 모든 CPU가 메모리 하나 공유. UMA(SMP) = 접근 시간 같음 / NUMA = CPU마다 가까운 로컬 메모리, UMA의 버스 병목 보완","calc":"","prereq":[49,54,93],"next":[130,131],"exam":{"prob":35,"types":["mcq","essay"],"refs":["124"]},"warn":false},{"id":130,"title":"캐시 일관성 (스누핑·디렉터리·MESI)","stars":3,"root":false,"chapter":19,"why":"코어마다 캐시가 있어서 같은 주소 값이 서로 달라질 수 있어","core":"스누핑 = 모든 캐시가 버스를 엿들음(버스 기반·소규모·브로드캐스트) / 디렉터리 = 중앙 목록으로 복사본 위치 관리(대규모·브로드캐스트 X) / MESI = Modified · Exclusive · Shared · Invalid","calc":"","prereq":[129,59],"next":[],"exam":{"prob":null,"types":[],"refs":["128","159","모의2-21"],"raw":"교재 128 159 모의2-21 27(주관식)"},"warn":false},{"id":131,"title":"클러스터·그리드·C/S","stars":2,"root":false,"chapter":19,"why":"컴퓨터 여러 대를 하나처럼 쓰고 싶어","core":"클러스터 = LAN으로 묶은 동종 컴퓨터 / 그리드 = WAN으로 이기종 자원 공유 / 클라이언트·서버 = 요청과 응답을 나눔","calc":"","prereq":[129],"next":[],"exam":{"prob":20,"types":["mcq"],"refs":["156","158"]},"warn":false},{"id":132,"title":"임베디드 시스템 특징","stars":5,"root":false,"chapter":20,"why":"가전·자동차 안에 PC를 통째로 넣을 순 없어","core":"특정 기능 전용 컴퓨터, HW + SW 일체, 실시간, 저전력·소형·저비용, 자원 제한, 멀티레이트, 복잡한 알고리즘도 특징. 하드웨어 지식이 소프트웨어 지식보다 우선(교재 161 정답 = '소프트웨어 지식')","calc":"","prereq":[34,78],"next":[133,134],"exam":{"prob":60,"types":["mcq"],"refs":["161","163","163"]},"warn":true},{"id":133,"title":"RTOS (실시간 OS)","stars":2,"root":false,"chapter":20,"why":"에어백은 늦게 터지면 의미가 없어","core":"정해진 시간(데드라인) 안에 반드시 처리. 경성 실시간(못 지키면 실패, 에어백) / 연성(늦으면 품질만 떨어짐, 동영상). 우선순위 기반 선점 스케줄링","calc":"","prereq":[132,85],"next":[],"exam":{"prob":25,"types":["mcq"],"refs":[]},"warn":false},{"id":134,"title":"임베디드 리눅스","stars":2,"root":false,"chapter":20,"why":"임베디드에도 검증된 OS를 쓰고 싶어","core":"장점 = 로열티 없음·소스 공개·다양한 하드웨어·네트워크 / 단점 = 실시간성 약함, 메모리 많이 씀","calc":"","prereq":[132,127],"next":[],"exam":{"prob":25,"types":["mcq"],"refs":["162"]},"warn":false},{"id":135,"title":"가상화·하이퍼바이저 Type1 vs Type2","stars":5,"root":false,"chapter":21,"why":"서버 한 대에 OS 하나면 자원이 놀아","core":"하이퍼바이저(VMM) = 가상머신 관리자. Type1(베어메탈) = 하드웨어 위에 바로, 호스트 OS 없음, 서버용·빠름(VMware ESXi, Xen) / Type2(호스티드) = 호스트 OS 위에(VirtualBox), 개인 PC·설치 쉬움·지연","calc":"","prereq":[78,66],"next":[136,137,138,139,140,141],"exam":{"prob":50,"types":["mcq"],"refs":["173","179","180"]},"warn":false},{"id":136,"title":"전가상화 vs 반가상화·HW 지원","stars":2,"root":false,"chapter":21,"why":"게스트 OS의 특권 명령을 어떻게 처리할지","core":"전가상화 = 게스트 OS 수정 X, 하이퍼바이저가 특권 명령을 잡아서 처리(느림) / 반가상화 = 게스트 OS를 고쳐 하이퍼바이저를 직접 호출(하이퍼콜, 빠름) / HW 지원 = Intel VT-x·AMD-V","calc":"","prereq":[135],"next":[],"exam":{"prob":25,"types":["mcq"],"refs":[]},"warn":false},{"id":137,"title":"가상화의 메모리·I/O 관리","stars":1,"root":false,"chapter":21,"why":"게스트 OS도 자기가 메모리·장치를 다 가진 줄 알아","core":"메모리 = 게스트 가상 → 게스트 물리 → 실제 물리, 2단계 변환(섀도 페이지 테이블 또는 HW 지원) / I/O = 장치를 흉내 내거나(에뮬레이션) 직접 연결(패스스루)","calc":"","prereq":[135,108],"next":[],"exam":{"prob":10,"types":["mcq"],"refs":[]},"warn":false},{"id":138,"title":"JVM","stars":3,"root":false,"chapter":21,"why":"한 번 작성해서 어디서나 돌리고 싶어","core":"자바 소스 → javac → 바이트코드 → JVM이 실행(인터프리터 + JIT) → 플랫폼 독립. 구성: 클래스로더 · 실행 엔진 · 런타임 데이터 영역(힙·스택·메서드) · GC. 하드웨어 직접 제어 X(JNI 필요). OS 전체가 아니라 프로그램 하나를 돌리는 가상머신","calc":"","prereq":[72,135],"next":[139],"exam":{"prob":35,"types":["mcq"],"refs":["167","170","175"]},"warn":false},{"id":139,"title":"안드로이드 VM·VMware ESXi","stars":2,"root":false,"chapter":21,"why":"공식 범위에 사례로 콕 집혀 있어","core":"안드로이드 = 달빅 VM(실행할 때 JIT) → ART(설치할 때 미리 컴파일, AOT). VMware ESXi = Type1 하이퍼바이저의 대표","calc":"","prereq":[138,135],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":[]},"warn":false},{"id":140,"title":"컨테이너·도커","stars":2,"root":false,"chapter":21,"why":"VM은 OS를 통째로 올려서 무거워","core":"컨테이너 = 호스트 OS 커널 공유, 앱과 라이브러리만 격리(가볍고 빠름). 도커 = Go로 개발, 이미지(설계도) → 컨테이너(실행)","calc":"","prereq":[135],"next":[],"exam":{"prob":15,"types":["mcq"],"refs":["171","172","178"]},"warn":false},{"id":141,"title":"[범위 밖] NFV·SDN·코틀린·스칼라·로드밸런서","stars":1,"root":false,"chapter":21,"why":"교재엔 있지만 공식 평가영역엔 없어","core":"SDN = 제어부·전송부 분리 / NFV = 전용 네트워크 장비 기능을 x86 서버 SW로 / 코틀린 = 정적 타입 / 스칼라 = 함수형 강함 / 로드밸런서 = Health Check·NAT·터널링·DSR","calc":"","prereq":[135],"next":[],"exam":{"prob":5,"types":["mcq"],"refs":["165","166","168","169","176","177"]},"warn":false},{"id":142,"title":"침입자·악성코드","stars":5,"root":false,"chapter":22,"why":"시스템을 노리는 사람과 프로그램이 있어","core":"침입자 = 위장자(외부, 남의 계정) · 불법 사용자(내부, 권한 남용) · 비밀 사용자(감독 권한 탈취). 악성코드: 바이러스(혼자 실행 X, 다른 프로그램에 기생) / 웜(혼자 실행·네트워크 전파) / 트로이 목마(정상 프로그램 위장) / 루트킷(몰래 관리자 권한, 흔적 숨김) / 백도어 / 랜섬웨어(파일 잠그고 몸값) / 봇넷(좀비 PC 무리) / APT(지능적·지속적)","calc":"","prereq":[78],"next":[143,144,145],"exam":{"prob":55,"types":["mcq"],"refs":["186","187","190","191","196","200"]},"warn":false},{"id":143,"title":"접근 제어 (인증·인가, DAC·MAC·RBAC)","stars":3,"root":false,"chapter":22,"why":"누가 무엇을 할 수 있는지 통제해야 해","core":"인증(누구냐, 로그인) → 인가(무엇을 할 수 있냐). DAC(임의적, 소유자가 권한을 줌, UNIX rwx) / MAC(강제적, 보안 등급으로 시스템이 강제, 군사) / RBAC(역할 기반, 역할에 권한)","calc":"","prereq":[123,142],"next":[146],"exam":{"prob":30,"types":["mcq"],"refs":["181"]},"warn":false},{"id":144,"title":"시스템 공격 (버퍼 오버플로·DoS·사회공학)","stars":3,"root":false,"chapter":22,"why":"프로그램의 빈틈과 사람의 빈틈을 노려","core":"버퍼 오버플로 = 버퍼보다 많이 써서 스택의 복귀주소를 덮어 공격 코드로 점프(방어: 경계 검사, 스택 카나리, 실행 금지, ASLR) / DoS·DDoS = 자원 고갈로 서비스 마비 / 사회공학 = 사람을 속여 정보 획득","calc":"스택에 복귀주소가 있어서(41 스택) 덮어쓰기가 가능","prereq":[41,142],"next":[],"exam":{"prob":30,"types":["mcq"],"refs":["197","모의1-28"]},"warn":false},{"id":145,"title":"침입 탐지 (IDS·IPS)","stars":2,"root":false,"chapter":22,"why":"들어오는 공격을 알아채고 막아야 해","core":"IDS = 탐지·경보(오용 탐지 = 알려진 패턴 / 이상 탐지 = 평소와 다른 행동) / IPS = 탐지 + 차단(실시간)","calc":"","prereq":[142],"next":[146],"exam":{"prob":25,"types":["mcq"],"refs":["189","195","189"]},"warn":true},{"id":146,"title":"보안 강화·방화벽","stars":2,"root":false,"chapter":22,"why":"기본 방어선을 단단하게","core":"패치·불필요 서비스 제거·최소 권한·로그 감사. 방화벽 = 접근 통제(1세대 패킷 필터링 IP·포트 / 2세대 스테이트풀 세션 추적 / 3세대 애플리케이션 계층 WAF·L7). DMZ = 내부와 외부 사이 완충 구역","calc":"","prereq":[143,145],"next":[147],"exam":{"prob":25,"types":["mcq"],"refs":["184","188","192","193","198","모의1-19","모의2-23"]},"warn":false},{"id":147,"title":"[범위 밖] WEB/WAS·UTM·OSI·DIKW·포렌식","stars":1,"root":false,"chapter":22,"why":"교재엔 있지만 공식 평가영역엔 없어","core":"WEB = 정적, WAS = 동적 / UTM = 보안 기능 통합 장비 / OSI 아래부터 물·데·네·전·세·표·응 / DIKW = Data·Information·Knowledge·Wisdom / 디지털 포렌식 = 삭제 파일 복원 등 증거 수집","calc":"","prereq":[146],"next":[],"exam":{"prob":5,"types":["mcq"],"refs":["002","006","182","183","185","194","모의1-20","모의2-28"]},"warn":false}],"edges":[{"from":1,"to":2,"type":"prerequisite_of"},{"from":1,"to":34,"type":"prerequisite_of"},{"from":2,"to":3,"type":"prerequisite_of"},{"from":3,"to":4,"type":"prerequisite_of"},{"from":3,"to":6,"type":"prerequisite_of"},{"from":3,"to":13,"type":"prerequisite_of"},{"from":3,"to":18,"type":"prerequisite_of"},{"from":3,"to":24,"type":"prerequisite_of"},{"from":3,"to":57,"type":"prerequisite_of"},{"from":3,"to":108,"type":"prerequisite_of"},{"from":4,"to":5,"type":"prerequisite_of"},{"from":4,"to":15,"type":"prerequisite_of"},{"from":4,"to":21,"type":"prerequisite_of"},{"from":5,"to":20,"type":"prerequisite_of"},{"from":6,"to":7,"type":"prerequisite_of"},{"from":7,"to":8,"type":"prerequisite_of"},{"from":7,"to":10,"type":"prerequisite_of"},{"from":7,"to":11,"type":"prerequisite_of"},{"from":7,"to":21,"type":"prerequisite_of"},{"from":7,"to":23,"type":"prerequisite_of"},{"from":8,"to":9,"type":"prerequisite_of"},{"from":11,"to":12,"type":"prerequisite_of"},{"from":11,"to":13,"type":"prerequisite_of"},{"from":11,"to":25,"type":"prerequisite_of"},{"from":12,"to":16,"type":"prerequisite_of"},{"from":12,"to":34,"type":"prerequisite_of"},{"from":13,"to":14,"type":"prerequisite_of"},{"from":13,"to":36,"type":"prerequisite_of"},{"from":13,"to":47,"type":"prerequisite_of"},{"from":14,"to":34,"type":"prerequisite_of"},{"from":14,"to":37,"type":"prerequisite_of"},{"from":15,"to":16,"type":"prerequisite_of"},{"from":15,"to":20,"type":"prerequisite_of"},{"from":16,"to":17,"type":"prerequisite_of"},{"from":16,"to":19,"type":"prerequisite_of"},{"from":18,"to":19,"type":"prerequisite_of"},{"from":18,"to":20,"type":"prerequisite_of"},{"from":18,"to":29,"type":"prerequisite_of"},{"from":21,"to":22,"type":"prerequisite_of"},{"from":23,"to":62,"type":"prerequisite_of"},{"from":24,"to":25,"type":"prerequisite_of"},{"from":24,"to":27,"type":"prerequisite_of"},{"from":24,"to":45,"type":"prerequisite_of"},{"from":24,"to":48,"type":"prerequisite_of"},{"from":25,"to":26,"type":"prerequisite_of"},{"from":25,"to":47,"type":"prerequisite_of"},{"from":26,"to":27,"type":"prerequisite_of"},{"from":27,"to":28,"type":"prerequisite_of"},{"from":27,"to":29,"type":"prerequisite_of"},{"from":27,"to":30,"type":"prerequisite_of"},{"from":27,"to":32,"type":"prerequisite_of"},{"from":29,"to":30,"type":"prerequisite_of"},{"from":29,"to":31,"type":"prerequisite_of"},{"from":29,"to":34,"type":"prerequisite_of"},{"from":29,"to":70,"type":"prerequisite_of"},{"from":31,"to":32,"type":"prerequisite_of"},{"from":31,"to":33,"type":"prerequisite_of"},{"from":31,"to":52,"type":"prerequisite_of"},{"from":31,"to":60,"type":"prerequisite_of"},{"from":32,"to":52,"type":"prerequisite_of"},{"from":32,"to":54,"type":"prerequisite_of"},{"from":33,"to":47,"type":"prerequisite_of"},{"from":33,"to":61,"type":"prerequisite_of"},{"from":34,"to":35,"type":"prerequisite_of"},{"from":34,"to":37,"type":"prerequisite_of"},{"from":34,"to":52,"type":"prerequisite_of"},{"from":34,"to":132,"type":"prerequisite_of"},{"from":35,"to":36,"type":"prerequisite_of"},{"from":35,"to":38,"type":"prerequisite_of"},{"from":35,"to":43,"type":"prerequisite_of"},{"from":35,"to":45,"type":"prerequisite_of"},{"from":37,"to":63,"type":"prerequisite_of"},{"from":37,"to":64,"type":"prerequisite_of"},{"from":37,"to":68,"type":"prerequisite_of"},{"from":38,"to":39,"type":"prerequisite_of"},{"from":38,"to":40,"type":"prerequisite_of"},{"from":39,"to":71,"type":"prerequisite_of"},{"from":40,"to":41,"type":"prerequisite_of"},{"from":40,"to":43,"type":"prerequisite_of"},{"from":41,"to":42,"type":"prerequisite_of"},{"from":41,"to":46,"type":"prerequisite_of"},{"from":41,"to":66,"type":"prerequisite_of"},{"from":41,"to":79,"type":"prerequisite_of"},{"from":41,"to":144,"type":"prerequisite_of"},{"from":43,"to":44,"type":"prerequisite_of"},{"from":43,"to":46,"type":"prerequisite_of"},{"from":43,"to":51,"type":"prerequisite_of"},{"from":43,"to":75,"type":"prerequisite_of"},{"from":45,"to":46,"type":"prerequisite_of"},{"from":46,"to":47,"type":"prerequisite_of"},{"from":46,"to":48,"type":"prerequisite_of"},{"from":46,"to":49,"type":"prerequisite_of"},{"from":46,"to":66,"type":"prerequisite_of"},{"from":47,"to":51,"type":"prerequisite_of"},{"from":48,"to":49,"type":"prerequisite_of"},{"from":49,"to":50,"type":"prerequisite_of"},{"from":49,"to":51,"type":"prerequisite_of"},{"from":49,"to":128,"type":"prerequisite_of"},{"from":49,"to":129,"type":"prerequisite_of"},{"from":52,"to":53,"type":"prerequisite_of"},{"from":52,"to":54,"type":"prerequisite_of"},{"from":53,"to":54,"type":"prerequisite_of"},{"from":53,"to":117,"type":"prerequisite_of"},{"from":54,"to":55,"type":"prerequisite_of"},{"from":54,"to":56,"type":"prerequisite_of"},{"from":54,"to":59,"type":"prerequisite_of"},{"from":54,"to":110,"type":"prerequisite_of"},{"from":54,"to":129,"type":"prerequisite_of"},{"from":56,"to":57,"type":"prerequisite_of"},{"from":56,"to":58,"type":"prerequisite_of"},{"from":59,"to":130,"type":"prerequisite_of"},{"from":60,"to":62,"type":"prerequisite_of"},{"from":60,"to":118,"type":"prerequisite_of"},{"from":60,"to":119,"type":"prerequisite_of"},{"from":60,"to":120,"type":"prerequisite_of"},{"from":63,"to":64,"type":"prerequisite_of"},{"from":63,"to":65,"type":"prerequisite_of"},{"from":65,"to":66,"type":"prerequisite_of"},{"from":66,"to":67,"type":"prerequisite_of"},{"from":66,"to":68,"type":"prerequisite_of"},{"from":66,"to":78,"type":"prerequisite_of"},{"from":66,"to":81,"type":"prerequisite_of"},{"from":66,"to":85,"type":"prerequisite_of"},{"from":66,"to":114,"type":"prerequisite_of"},{"from":66,"to":135,"type":"prerequisite_of"},{"from":68,"to":69,"type":"prerequisite_of"},{"from":71,"to":72,"type":"prerequisite_of"},{"from":72,"to":73,"type":"prerequisite_of"},{"from":72,"to":76,"type":"prerequisite_of"},{"from":72,"to":77,"type":"prerequisite_of"},{"from":72,"to":138,"type":"prerequisite_of"},{"from":73,"to":74,"type":"prerequisite_of"},{"from":74,"to":75,"type":"prerequisite_of"},{"from":75,"to":78,"type":"prerequisite_of"},{"from":75,"to":104,"type":"prerequisite_of"},{"from":75,"to":127,"type":"prerequisite_of"},{"from":78,"to":79,"type":"prerequisite_of"},{"from":78,"to":124,"type":"prerequisite_of"},{"from":78,"to":132,"type":"prerequisite_of"},{"from":78,"to":135,"type":"prerequisite_of"},{"from":78,"to":142,"type":"prerequisite_of"},{"from":79,"to":80,"type":"prerequisite_of"},{"from":79,"to":83,"type":"prerequisite_of"},{"from":79,"to":104,"type":"prerequisite_of"},{"from":80,"to":81,"type":"prerequisite_of"},{"from":80,"to":82,"type":"prerequisite_of"},{"from":81,"to":82,"type":"prerequisite_of"},{"from":81,"to":84,"type":"prerequisite_of"},{"from":81,"to":126,"type":"prerequisite_of"},{"from":82,"to":83,"type":"prerequisite_of"},{"from":83,"to":94,"type":"prerequisite_of"},{"from":84,"to":85,"type":"prerequisite_of"},{"from":84,"to":93,"type":"prerequisite_of"},{"from":85,"to":86,"type":"prerequisite_of"},{"from":85,"to":89,"type":"prerequisite_of"},{"from":85,"to":90,"type":"prerequisite_of"},{"from":85,"to":133,"type":"prerequisite_of"},{"from":86,"to":87,"type":"prerequisite_of"},{"from":86,"to":89,"type":"prerequisite_of"},{"from":86,"to":92,"type":"prerequisite_of"},{"from":87,"to":88,"type":"prerequisite_of"},{"from":87,"to":90,"type":"prerequisite_of"},{"from":87,"to":92,"type":"prerequisite_of"},{"from":87,"to":119,"type":"prerequisite_of"},{"from":88,"to":92,"type":"prerequisite_of"},{"from":89,"to":91,"type":"prerequisite_of"},{"from":89,"to":92,"type":"prerequisite_of"},{"from":90,"to":92,"type":"prerequisite_of"},{"from":93,"to":129,"type":"prerequisite_of"},{"from":94,"to":95,"type":"prerequisite_of"},{"from":95,"to":96,"type":"prerequisite_of"},{"from":95,"to":97,"type":"prerequisite_of"},{"from":96,"to":97,"type":"prerequisite_of"},{"from":97,"to":98,"type":"prerequisite_of"},{"from":97,"to":99,"type":"prerequisite_of"},{"from":97,"to":100,"type":"prerequisite_of"},{"from":100,"to":101,"type":"prerequisite_of"},{"from":100,"to":102,"type":"prerequisite_of"},{"from":100,"to":103,"type":"prerequisite_of"},{"from":104,"to":105,"type":"prerequisite_of"},{"from":105,"to":106,"type":"prerequisite_of"},{"from":105,"to":107,"type":"prerequisite_of"},{"from":105,"to":108,"type":"prerequisite_of"},{"from":105,"to":111,"type":"prerequisite_of"},{"from":107,"to":113,"type":"prerequisite_of"},{"from":108,"to":109,"type":"prerequisite_of"},{"from":108,"to":112,"type":"prerequisite_of"},{"from":108,"to":113,"type":"prerequisite_of"},{"from":108,"to":137,"type":"prerequisite_of"},{"from":109,"to":110,"type":"prerequisite_of"},{"from":111,"to":112,"type":"prerequisite_of"},{"from":113,"to":114,"type":"prerequisite_of"},{"from":114,"to":115,"type":"prerequisite_of"},{"from":115,"to":116,"type":"prerequisite_of"},{"from":115,"to":117,"type":"prerequisite_of"},{"from":120,"to":121,"type":"prerequisite_of"},{"from":120,"to":122,"type":"prerequisite_of"},{"from":120,"to":123,"type":"prerequisite_of"},{"from":120,"to":124,"type":"prerequisite_of"},{"from":122,"to":125,"type":"prerequisite_of"},{"from":123,"to":143,"type":"prerequisite_of"},{"from":124,"to":125,"type":"prerequisite_of"},{"from":124,"to":126,"type":"prerequisite_of"},{"from":124,"to":127,"type":"prerequisite_of"},{"from":127,"to":134,"type":"prerequisite_of"},{"from":129,"to":130,"type":"prerequisite_of"},{"from":129,"to":131,"type":"prerequisite_of"},{"from":132,"to":133,"type":"prerequisite_of"},{"from":132,"to":134,"type":"prerequisite_of"},{"from":135,"to":136,"type":"prerequisite_of"},{"from":135,"to":137,"type":"prerequisite_of"},{"from":135,"to":138,"type":"prerequisite_of"},{"from":135,"to":139,"type":"prerequisite_of"},{"from":135,"to":140,"type":"prerequisite_of"},{"from":135,"to":141,"type":"prerequisite_of"},{"from":138,"to":139,"type":"prerequisite_of"},{"from":142,"to":143,"type":"prerequisite_of"},{"from":142,"to":144,"type":"prerequisite_of"},{"from":142,"to":145,"type":"prerequisite_of"},{"from":143,"to":146,"type":"prerequisite_of"},{"from":145,"to":146,"type":"prerequisite_of"},{"from":146,"to":147,"type":"prerequisite_of"}]};
+const L = {"width":6424,"height":1987,"pos":{"1":{"x":125,"y":1875,"w":190,"h":30},"2":{"x":332,"y":1147,"w":132,"h":30},"3":{"x":514,"y":1147,"w":139,"h":30},"4":{"x":1070,"y":65,"w":87,"h":30},"5":{"x":1268,"y":45,"w":127,"h":30},"6":{"x":673,"y":188,"w":87,"h":30},"7":{"x":857,"y":188,"w":190,"h":30},"8":{"x":1070,"y":125,"w":144,"h":30},"9":{"x":1268,"y":125,"w":87,"h":30},"10":{"x":1070,"y":165,"w":100,"h":30},"11":{"x":1070,"y":228,"w":112,"h":30},"12":{"x":1268,"y":165,"w":112,"h":30},"13":{"x":1639,"y":361,"w":112,"h":30},"14":{"x":1854,"y":341,"w":175,"h":30},"15":{"x":1268,"y":85,"w":159,"h":30},"16":{"x":1454,"y":85,"w":114,"h":30},"17":{"x":1639,"y":85,"w":157,"h":30},"18":{"x":1268,"y":1904,"w":100,"h":30},"19":{"x":1639,"y":321,"w":100,"h":30},"20":{"x":1454,"y":191,"w":93,"h":30},"21":{"x":1268,"y":231,"w":87,"h":30},"22":{"x":1454,"y":231,"w":121,"h":30},"23":{"x":3676,"y":298,"w":132,"h":30},"24":{"x":1070,"y":1933,"w":55,"h":30},"25":{"x":1268,"y":413,"w":157,"h":30},"26":{"x":1454,"y":367,"w":55,"h":30},"27":{"x":1639,"y":1728,"w":80,"h":30},"28":{"x":1854,"y":1054,"w":157,"h":30},"29":{"x":1854,"y":1739,"w":182,"h":30},"30":{"x":2073,"y":1545,"w":68,"h":30},"31":{"x":3204,"y":1731,"w":177,"h":30},"32":{"x":3440,"y":1652,"w":116,"h":30},"33":{"x":3440,"y":1589,"w":84,"h":30},"34":{"x":2073,"y":1329,"w":84,"h":30},"35":{"x":2256,"y":908,"w":112,"h":30},"36":{"x":2453,"y":401,"w":190,"h":30},"37":{"x":2968,"y":459,"w":100,"h":30},"38":{"x":2453,"y":668,"w":100,"h":30},"39":{"x":2644,"y":585,"w":100,"h":30},"40":{"x":2968,"y":742,"w":100,"h":30},"41":{"x":3204,"y":739,"w":55,"h":30},"42":{"x":3440,"y":671,"w":119,"h":30},"43":{"x":3204,"y":1401,"w":119,"h":30},"44":{"x":3440,"y":1281,"w":112,"h":30},"45":{"x":2453,"y":1486,"w":105,"h":30},"46":{"x":3440,"y":1391,"w":152,"h":30},"47":{"x":3676,"y":1029,"w":190,"h":30},"48":{"x":3676,"y":1552,"w":116,"h":30},"49":{"x":3912,"y":1488,"w":144,"h":30},"50":{"x":4148,"y":1420,"w":127,"h":30},"51":{"x":4148,"y":1298,"w":116,"h":30},"52":{"x":3676,"y":1640,"w":144,"h":30},"53":{"x":4856,"y":1615,"w":68,"h":30},"54":{"x":5090,"y":1686,"w":119,"h":30},"55":{"x":5311,"y":1641,"w":152,"h":30},"56":{"x":5311,"y":1721,"w":127,"h":30},"57":{"x":5529,"y":1781,"w":119,"h":30},"58":{"x":5529,"y":1741,"w":144,"h":30},"59":{"x":5311,"y":1761,"w":119,"h":30},"60":{"x":3676,"y":1827,"w":182,"h":30},"61":{"x":3676,"y":1592,"w":52,"h":30},"62":{"x":3912,"y":1142,"w":59,"h":30},"63":{"x":3204,"y":447,"w":166,"h":30},"64":{"x":3440,"y":459,"w":190,"h":30},"65":{"x":3440,"y":499,"w":109,"h":30},"66":{"x":3676,"y":739,"w":80,"h":30},"67":{"x":3912,"y":716,"w":169,"h":30},"68":{"x":3912,"y":676,"w":52,"h":30},"69":{"x":4148,"y":676,"w":84,"h":30},"70":{"x":2073,"y":1875,"w":163,"h":30},"71":{"x":2784,"y":585,"w":87,"h":30},"72":{"x":2968,"y":585,"w":190,"h":30},"73":{"x":3204,"y":545,"w":180,"h":30},"74":{"x":3440,"y":545,"w":141,"h":30},"75":{"x":3676,"y":1205,"w":127,"h":30},"76":{"x":3204,"y":585,"w":100,"h":30},"77":{"x":3204,"y":625,"w":190,"h":30},"78":{"x":3912,"y":980,"w":190,"h":30},"79":{"x":4148,"y":997,"w":157,"h":30},"80":{"x":4384,"y":941,"w":52,"h":30},"81":{"x":4620,"y":841,"w":144,"h":30},"82":{"x":4856,"y":886,"w":87,"h":30},"83":{"x":5090,"y":886,"w":68,"h":30},"84":{"x":4856,"y":843,"w":144,"h":30},"85":{"x":5090,"y":748,"w":121,"h":30},"86":{"x":5311,"y":713,"w":59,"h":30},"87":{"x":5529,"y":636,"w":52,"h":30},"88":{"x":5737,"y":616,"w":52,"h":30},"89":{"x":5529,"y":713,"w":44,"h":30},"90":{"x":5737,"y":662,"w":52,"h":30},"91":{"x":5737,"y":702,"w":138,"h":30},"92":{"x":5919,"y":682,"w":112,"h":30},"93":{"x":5090,"y":846,"w":162,"h":30},"94":{"x":5311,"y":803,"w":132,"h":30},"95":{"x":5529,"y":803,"w":152,"h":30},"96":{"x":5737,"y":768,"w":146,"h":30},"97":{"x":5919,"y":803,"w":125,"h":30},"98":{"x":6093,"y":763,"w":68,"h":30},"99":{"x":6093,"y":803,"w":132,"h":30},"100":{"x":6093,"y":941,"w":119,"h":30},"101":{"x":6300,"y":921,"w":87,"h":30},"102":{"x":6300,"y":961,"w":189,"h":30},"103":{"x":6300,"y":1001,"w":119,"h":30},"104":{"x":4384,"y":1156,"w":157,"h":30},"105":{"x":4620,"y":1156,"w":164,"h":30},"106":{"x":4856,"y":1073,"w":87,"h":30},"107":{"x":4856,"y":1153,"w":134,"h":30},"108":{"x":4856,"y":1575,"w":68,"h":30},"109":{"x":5090,"y":1566,"w":132,"h":30},"110":{"x":5311,"y":1681,"w":52,"h":30},"111":{"x":4856,"y":1201,"w":105,"h":30},"112":{"x":5090,"y":1343,"w":182,"h":30},"113":{"x":5090,"y":1383,"w":100,"h":30},"114":{"x":5311,"y":1041,"w":164,"h":30},"115":{"x":5529,"y":1041,"w":179,"h":30},"116":{"x":5737,"y":857,"w":112,"h":30},"117":{"x":5737,"y":1615,"w":141,"h":30},"118":{"x":3912,"y":1752,"w":190,"h":30},"119":{"x":5737,"y":808,"w":125,"h":30},"120":{"x":3912,"y":1922,"w":190,"h":30},"121":{"x":4148,"y":1862,"w":87,"h":30},"122":{"x":4148,"y":1902,"w":132,"h":30},"123":{"x":4148,"y":1942,"w":119,"h":30},"124":{"x":4148,"y":1460,"w":91,"h":30},"125":{"x":4384,"y":1578,"w":141,"h":30},"126":{"x":4856,"y":1113,"w":180,"h":30},"127":{"x":4384,"y":1391,"w":177,"h":30},"128":{"x":4148,"y":1500,"w":190,"h":30},"129":{"x":5311,"y":1358,"w":150,"h":30},"130":{"x":5529,"y":1701,"w":100,"h":30},"131":{"x":5529,"y":1569,"w":154,"h":30},"132":{"x":4384,"y":1236,"w":157,"h":30},"133":{"x":5311,"y":989,"w":59,"h":30},"134":{"x":4620,"y":1333,"w":125,"h":30},"135":{"x":4148,"y":1069,"w":190,"h":30},"136":{"x":4384,"y":1027,"w":190,"h":30},"137":{"x":5090,"y":1423,"w":186,"h":30},"138":{"x":4384,"y":981,"w":52,"h":30},"139":{"x":4620,"y":1027,"w":190,"h":30},"140":{"x":4384,"y":1099,"w":112,"h":30},"141":{"x":4384,"y":1196,"w":190,"h":30},"142":{"x":4148,"y":1124,"w":125,"h":30},"143":{"x":4384,"y":1492,"w":87,"h":30},"144":{"x":4384,"y":1276,"w":100,"h":30},"145":{"x":4384,"y":1333,"w":87,"h":30},"146":{"x":4620,"y":1373,"w":132,"h":30},"147":{"x":4856,"y":1373,"w":190,"h":30}},"edges":[{"from":1,"to":2,"pts":[[127,1860],[243,1147],[266,1147]]},{"from":1,"to":34,"pts":[[142,1890],[243,1977],[332,1977],[421,1977],[514,1977],[606,1977],[673,1977],[739,1977],[857,1977],[975,1977],[1070,1977],[1165,1977],[1268,1977],[1370,1977],[1454,1977],[1537,1977],[1639,1977],[1740,1977],[1854,1977],[1968,1977],[2070,1344]]},{"from":2,"to":3,"pts":[[398,1147],[421,1147],[444,1147]]},{"from":3,"to":4,"pts":[[515,1132],[606,65],[673,65],[739,65],[857,65],[975,65],[1027,65]]},{"from":3,"to":6,"pts":[[515,1132],[606,188],[629,188]]},{"from":3,"to":13,"pts":[[536,1162],[606,1208],[673,1208],[739,1208],[857,1208],[975,1208],[1070,1208],[1165,1208],[1268,1208],[1370,1208],[1454,1208],[1537,1208],[1637,376]]},{"from":3,"to":18,"pts":[[515,1162],[606,1904],[673,1904],[739,1904],[857,1904],[975,1904],[1070,1904],[1165,1904],[1218,1904]]},{"from":3,"to":24,"pts":[[515,1162],[606,1933],[673,1933],[739,1933],[857,1933],[975,1933],[1043,1933]]},{"from":3,"to":57,"pts":[[515,1162],[606,1965],[673,1965],[739,1965],[857,1965],[975,1965],[1070,1965],[1165,1965],[1268,1965],[1370,1965],[1454,1965],[1537,1965],[1639,1965],[1740,1965],[1854,1965],[1968,1965],[2073,1965],[2177,1965],[2256,1965],[2335,1965],[2453,1965],[2571,1965],[2644,1965],[2717,1965],[2784,1965],[2850,1965],[2968,1965],[3086,1965],[3204,1965],[3322,1965],[3440,1965],[3558,1965],[3676,1965],[3794,1965],[3912,1965],[4030,1965],[4148,1965],[4266,1965],[4384,1965],[4502,1965],[4620,1965],[4738,1965],[4856,1965],[4974,1965],[5090,1965],[5206,1965],[5311,1965],[5416,1965],[5519,1796]]},{"from":3,"to":108,"pts":[[515,1162],[606,1971],[673,1971],[739,1971],[857,1971],[975,1971],[1070,1971],[1165,1971],[1268,1971],[1370,1971],[1454,1971],[1537,1971],[1639,1971],[1740,1971],[1854,1971],[1968,1971],[2073,1971],[2177,1971],[2256,1971],[2335,1971],[2453,1971],[2571,1971],[2644,1971],[2717,1971],[2784,1971],[2850,1971],[2968,1971],[3086,1971],[3204,1971],[3322,1971],[3440,1971],[3558,1971],[3676,1971],[3794,1971],[3912,1971],[4030,1971],[4148,1971],[4266,1971],[4384,1971],[4502,1971],[4620,1971],[4738,1971],[4852,1590]]},{"from":4,"to":5,"pts":[[1114,56],[1165,45],[1204,45]]},{"from":4,"to":15,"pts":[[1114,74],[1165,85],[1188,85]]},{"from":4,"to":21,"pts":[[1106,80],[1165,105],[1255,216]]},{"from":5,"to":20,"pts":[[1331,45],[1370,45],[1445,176]]},{"from":6,"to":7,"pts":[[716,188],[739,188],[762,188]]},{"from":7,"to":8,"pts":[[885,173],[975,125],[998,125]]},{"from":7,"to":10,"pts":[[934,173],[975,165],[1020,165]]},{"from":7,"to":11,"pts":[[901,203],[975,228],[1014,228]]},{"from":7,"to":21,"pts":[[874,203],[975,292],[1070,292],[1165,292],[1242,246]]},{"from":7,"to":23,"pts":[[873,203],[975,298],[1070,298],[1165,298],[1268,298],[1370,298],[1454,298],[1537,298],[1639,298],[1740,298],[1854,298],[1968,298],[2073,298],[2177,298],[2256,298],[2335,298],[2453,298],[2571,298],[2644,298],[2717,298],[2784,298],[2850,298],[2968,298],[3086,298],[3204,298],[3322,298],[3440,298],[3558,298],[3610,298]]},{"from":8,"to":9,"pts":[[1142,125],[1165,125],[1224,125]]},{"from":11,"to":12,"pts":[[1103,213],[1165,185],[1212,176]]},{"from":11,"to":13,"pts":[[1101,243],[1165,274],[1268,274],[1370,274],[1454,274],[1537,274],[1621,346]]},{"from":11,"to":25,"pts":[[1097,243],[1165,280],[1256,398]]},{"from":12,"to":16,"pts":[[1324,159],[1370,154],[1435,100]]},{"from":12,"to":34,"pts":[[1324,167],[1370,168],[1454,168],[1537,168],[1639,168],[1740,168],[1854,168],[1968,168],[2071,1314]]},{"from":13,"to":14,"pts":[[1695,349],[1740,341],[1767,341]]},{"from":13,"to":36,"pts":[[1695,367],[1740,372],[1854,372],[1968,372],[2073,372],[2177,372],[2256,372],[2335,372],[2392,386]]},{"from":13,"to":47,"pts":[[1695,370],[1740,378],[1854,378],[1968,378],[2073,378],[2177,378],[2256,378],[2335,378],[2453,378],[2571,378],[2644,378],[2717,378],[2784,378],[2850,378],[2968,378],[3086,378],[3204,378],[3322,378],[3440,378],[3558,378],[3673,1014]]},{"from":14,"to":34,"pts":[[1942,334],[1968,332],[2071,1314]]},{"from":14,"to":37,"pts":[[1942,347],[1968,349],[2073,349],[2177,349],[2256,349],[2335,349],[2453,349],[2571,349],[2644,349],[2717,349],[2784,349],[2850,349],[2952,444]]},{"from":15,"to":16,"pts":[[1347,72],[1370,68],[1397,73]]},{"from":15,"to":20,"pts":[[1309,100],[1370,122],[1435,176]]},{"from":16,"to":17,"pts":[[1511,85],[1537,85],[1560,85]]},{"from":16,"to":19,"pts":[[1472,100],[1537,154],[1629,306]]},{"from":18,"to":19,"pts":[[1270,1889],[1370,1219],[1454,1219],[1537,1219],[1637,336]]},{"from":18,"to":20,"pts":[[1270,1889],[1370,1231],[1452,206]]},{"from":18,"to":29,"pts":[[1318,1908],[1370,1913],[1454,1913],[1537,1913],[1639,1913],[1740,1913],[1844,1754]]},{"from":21,"to":22,"pts":[[1311,231],[1370,231],[1393,231]]},{"from":23,"to":62,"pts":[[3742,298],[3794,298],[3910,1127]]},{"from":24,"to":25,"pts":[[1098,1928],[1165,1916],[1266,428]]},{"from":24,"to":27,"pts":[[1098,1931],[1165,1927],[1268,1927],[1370,1927],[1454,1927],[1537,1927],[1631,1743]]},{"from":24,"to":45,"pts":[[1098,1934],[1165,1936],[1268,1936],[1370,1936],[1454,1936],[1537,1936],[1639,1936],[1740,1936],[1854,1936],[1968,1936],[2073,1936],[2177,1936],[2256,1936],[2335,1936],[2449,1501]]},{"from":24,"to":48,"pts":[[1098,1935],[1165,1942],[1268,1942],[1370,1942],[1454,1942],[1537,1942],[1639,1942],[1740,1942],[1854,1942],[1968,1942],[2073,1942],[2177,1942],[2256,1942],[2335,1942],[2453,1942],[2571,1942],[2644,1942],[2717,1942],[2784,1942],[2850,1942],[2968,1942],[3086,1942],[3204,1942],[3322,1942],[3440,1942],[3558,1942],[3671,1567]]},{"from":25,"to":26,"pts":[[1301,398],[1370,367],[1426,367]]},{"from":25,"to":47,"pts":[[1346,421],[1370,424],[1454,424],[1537,424],[1639,424],[1740,424],[1854,424],[1968,424],[2073,424],[2177,424],[2256,424],[2335,424],[2453,424],[2571,424],[2644,424],[2717,424],[2784,424],[2850,424],[2968,424],[3086,424],[3204,424],[3322,424],[3440,424],[3558,424],[3673,1014]]},{"from":26,"to":27,"pts":[[1481,367],[1537,367],[1637,1713]]},{"from":27,"to":28,"pts":[[1641,1713],[1740,1054],[1776,1054]]},{"from":27,"to":29,"pts":[[1641,1713],[1740,1066],[1851,1724]]},{"from":27,"to":30,"pts":[[1641,1713],[1740,1077],[1854,1077],[1968,1077],[2069,1530]]},{"from":27,"to":32,"pts":[[1647,1743],[1740,1898],[1854,1898],[1968,1898],[2073,1898],[2177,1898],[2256,1898],[2335,1898],[2453,1898],[2571,1898],[2644,1898],[2717,1898],[2784,1898],[2850,1898],[2968,1898],[3086,1898],[3204,1898],[3322,1898],[3433,1667]]},{"from":29,"to":30,"pts":[[1863,1724],[1968,1556],[2039,1548]]},{"from":29,"to":31,"pts":[[1945,1732],[1968,1731],[2073,1731],[2177,1731],[2256,1731],[2335,1731],[2453,1731],[2571,1731],[2644,1731],[2717,1731],[2784,1731],[2850,1731],[2968,1731],[3086,1731],[3116,1731]]},{"from":29,"to":34,"pts":[[1868,1754],[1968,1864],[2070,1344]]},{"from":29,"to":70,"pts":[[1867,1754],[1968,1875],[1991,1875]]},{"from":31,"to":32,"pts":[[3226,1716],[3322,1652],[3382,1652]]},{"from":31,"to":33,"pts":[[3229,1716],[3322,1659],[3415,1604]]},{"from":31,"to":52,"pts":[[3293,1744],[3322,1749],[3440,1749],[3558,1749],[3660,1655]]},{"from":31,"to":60,"pts":[[3222,1746],[3322,1827],[3440,1827],[3558,1827],[3585,1827]]},{"from":32,"to":52,"pts":[[3498,1646],[3558,1640],[3604,1640]]},{"from":32,"to":54,"pts":[[3463,1667],[3558,1729],[3676,1729],[3794,1729],[3912,1729],[4030,1729],[4148,1729],[4266,1729],[4384,1729],[4502,1729],[4620,1729],[4738,1729],[4856,1729],[4974,1729],[5050,1701]]},{"from":33,"to":47,"pts":[[3482,1579],[3558,1561],[3673,1044]]},{"from":33,"to":61,"pts":[[3482,1590],[3558,1592],[3650,1592]]},{"from":34,"to":35,"pts":[[2076,1314],[2177,908],[2200,908]]},{"from":34,"to":37,"pts":[[2085,1344],[2177,1457],[2256,1457],[2335,1457],[2453,1457],[2571,1457],[2644,1457],[2717,1457],[2784,1457],[2850,1457],[2966,474]]},{"from":34,"to":52,"pts":[[2084,1344],[2177,1463],[2256,1463],[2335,1463],[2453,1463],[2571,1463],[2644,1463],[2717,1463],[2784,1463],[2850,1463],[2968,1463],[3086,1463],[3204,1463],[3322,1463],[3440,1463],[3558,1463],[3666,1625]]},{"from":34,"to":132,"pts":[[2080,1344],[2177,1529],[2256,1529],[2335,1529],[2453,1529],[2571,1529],[2644,1529],[2717,1529],[2784,1529],[2850,1529],[2968,1529],[3086,1529],[3204,1529],[3322,1529],[3440,1529],[3558,1529],[3676,1529],[3794,1529],[3912,1529],[4030,1529],[4148,1529],[4266,1529],[4378,1251]]},{"from":35,"to":36,"pts":[[2259,893],[2335,479],[2430,416]]},{"from":35,"to":38,"pts":[[2261,893],[2335,668],[2403,668]]},{"from":35,"to":43,"pts":[[2258,923],[2335,1440],[2453,1440],[2571,1440],[2644,1440],[2717,1440],[2784,1440],[2850,1440],[2968,1440],[3086,1440],[3158,1416]]},{"from":35,"to":45,"pts":[[2258,923],[2335,1446],[2409,1471]]},{"from":37,"to":63,"pts":[[3018,454],[3086,447],[3121,447]]},{"from":37,"to":64,"pts":[[3018,471],[3086,487],[3204,487],[3322,487],[3378,474]]},{"from":37,"to":68,"pts":[[2996,474],[3086,522],[3204,522],[3322,522],[3440,522],[3558,522],[3676,522],[3794,522],[3901,661]]},{"from":38,"to":39,"pts":[[2474,653],[2571,585],[2594,585]]},{"from":38,"to":40,"pts":[[2477,683],[2571,742],[2644,742],[2717,742],[2784,742],[2850,742],[2918,742]]},{"from":39,"to":71,"pts":[[2694,585],[2717,585],[2740,585]]},{"from":40,"to":41,"pts":[[3018,741],[3086,739],[3177,739]]},{"from":40,"to":43,"pts":[[2971,757],[3086,1291],[3188,1386]]},{"from":41,"to":42,"pts":[[3230,724],[3322,671],[3381,671]]},{"from":41,"to":46,"pts":[[3232,726],[3322,682],[3438,1376]]},{"from":41,"to":66,"pts":[[3232,739],[3322,739],[3440,739],[3558,739],[3636,739]]},{"from":41,"to":79,"pts":[[3210,754],[3322,1052],[3440,1052],[3558,1052],[3676,1052],[3794,1052],[3912,1052],[4030,1052],[4116,1012]]},{"from":41,"to":144,"pts":[[3208,754],[3322,1165],[3440,1165],[3558,1165],[3676,1165],[3794,1165],[3912,1165],[4030,1165],[4148,1165],[4266,1165],[4368,1261]]},{"from":43,"to":44,"pts":[[3219,1386],[3322,1281],[3384,1281]]},{"from":43,"to":46,"pts":[[3264,1396],[3322,1391],[3364,1391]]},{"from":43,"to":51,"pts":[[3264,1408],[3322,1414],[3440,1414],[3558,1414],[3676,1414],[3794,1414],[3912,1414],[4030,1414],[4133,1313]]},{"from":43,"to":75,"pts":[[3241,1416],[3322,1449],[3440,1449],[3558,1449],[3669,1220]]},{"from":45,"to":46,"pts":[[2506,1486],[2571,1486],[2644,1486],[2717,1486],[2784,1486],[2850,1486],[2968,1486],[3086,1486],[3204,1486],[3322,1486],[3421,1406]]},{"from":46,"to":47,"pts":[[3457,1376],[3558,1289],[3669,1044]]},{"from":46,"to":48,"pts":[[3458,1376],[3558,1295],[3669,1537]]},{"from":46,"to":49,"pts":[[3516,1395],[3558,1397],[3676,1397],[3794,1397],[3893,1473]]},{"from":46,"to":66,"pts":[[3516,1398],[3558,1403],[3673,754]]},{"from":47,"to":51,"pts":[[3771,1029],[3794,1029],[3912,1029],[4030,1029],[4141,1283]]},{"from":48,"to":49,"pts":[[3734,1552],[3794,1552],[3885,1503]]},{"from":49,"to":50,"pts":[[3938,1473],[4030,1420],[4085,1420]]},{"from":49,"to":51,"pts":[[3976,1473],[4030,1460],[4137,1313]]},{"from":49,"to":128,"pts":[[3984,1495],[4030,1500],[4053,1500]]},{"from":49,"to":129,"pts":[[3962,1503],[4030,1523],[4148,1523],[4266,1523],[4384,1523],[4502,1523],[4620,1523],[4738,1523],[4856,1523],[4974,1523],[5090,1523],[5206,1523],[5301,1373]]},{"from":52,"to":53,"pts":[[3747,1625],[3794,1615],[3912,1615],[4030,1615],[4148,1615],[4266,1615],[4384,1615],[4502,1615],[4620,1615],[4738,1615],[4822,1615]]},{"from":52,"to":54,"pts":[[3718,1655],[3794,1682],[3912,1682],[4030,1682],[4148,1682],[4266,1682],[4384,1682],[4502,1682],[4620,1682],[4738,1682],[4856,1682],[4974,1682],[5031,1684]]},{"from":53,"to":54,"pts":[[4890,1611],[4974,1601],[5069,1671]]},{"from":53,"to":117,"pts":[[4890,1616],[4974,1618],[5090,1618],[5206,1618],[5311,1618],[5416,1618],[5529,1618],[5641,1618],[5667,1617]]},{"from":54,"to":55,"pts":[[5129,1671],[5206,1641],[5235,1641]]},{"from":54,"to":56,"pts":[[5150,1685],[5206,1684],[5268,1706]]},{"from":54,"to":59,"pts":[[5150,1694],[5206,1703],[5284,1746]]},{"from":54,"to":110,"pts":[[5150,1697],[5206,1709],[5285,1688]]},{"from":54,"to":129,"pts":[[5118,1701],[5206,1747],[5307,1373]]},{"from":56,"to":57,"pts":[[5343,1706],[5416,1673],[5513,1766]]},{"from":56,"to":58,"pts":[[5375,1731],[5416,1738],[5457,1739]]},{"from":59,"to":130,"pts":[[5371,1761],[5416,1761],[5500,1716]]},{"from":60,"to":62,"pts":[[3696,1812],[3794,1741],[3909,1157]]},{"from":60,"to":118,"pts":[[3700,1812],[3794,1752],[3817,1752]]},{"from":60,"to":119,"pts":[[3767,1836],[3794,1839],[3912,1839],[4030,1839],[4148,1839],[4266,1839],[4384,1839],[4502,1839],[4620,1839],[4738,1839],[4856,1839],[4974,1839],[5090,1839],[5206,1839],[5311,1839],[5416,1839],[5529,1839],[5641,1839],[5736,823]]},{"from":60,"to":120,"pts":[[3695,1842],[3794,1922],[3817,1922]]},{"from":63,"to":64,"pts":[[3287,441],[3322,439],[3352,444]]},{"from":63,"to":65,"pts":[[3287,461],[3322,467],[3386,484]]},{"from":65,"to":66,"pts":[[3495,499],[3558,499],[3669,724]]},{"from":66,"to":67,"pts":[[3703,724],[3794,674],[3870,701]]},{"from":66,"to":68,"pts":[[3709,724],[3794,685],[3886,678]]},{"from":66,"to":78,"pts":[[3716,728],[3794,708],[3905,965]]},{"from":66,"to":81,"pts":[[3716,739],[3794,739],[3912,739],[4030,739],[4148,739],[4266,739],[4384,739],[4502,739],[4603,826]]},{"from":66,"to":85,"pts":[[3716,741],[3794,745],[3912,745],[4030,745],[4148,745],[4266,745],[4384,745],[4502,745],[4620,745],[4738,745],[4856,745],[4974,745],[5030,746]]},{"from":66,"to":114,"pts":[[3686,754],[3794,910],[3912,910],[4030,910],[4148,910],[4266,910],[4384,910],[4502,910],[4620,910],[4738,910],[4856,910],[4974,910],[5090,910],[5206,910],[5299,1026]]},{"from":66,"to":135,"pts":[[3683,754],[3794,1006],[3912,1006],[4030,1006],[4120,1054]]},{"from":68,"to":69,"pts":[[3938,676],[4030,676],[4106,676]]},{"from":71,"to":72,"pts":[[2827,585],[2850,585],[2873,585]]},{"from":72,"to":73,"pts":[[3012,570],[3086,545],[3114,545]]},{"from":72,"to":76,"pts":[[3063,585],[3086,585],[3154,585]]},{"from":72,"to":77,"pts":[[3012,600],[3086,625],[3109,625]]},{"from":72,"to":138,"pts":[[2996,600],[3086,648],[3204,648],[3322,648],[3440,648],[3558,648],[3676,648],[3794,648],[3912,648],[4030,648],[4148,648],[4266,648],[4379,966]]},{"from":73,"to":74,"pts":[[3294,545],[3322,545],[3370,545]]},{"from":74,"to":75,"pts":[[3511,545],[3558,545],[3673,1190]]},{"from":75,"to":78,"pts":[[3740,1191],[3794,1179],[3903,995]]},{"from":75,"to":104,"pts":[[3740,1194],[3794,1185],[3912,1185],[4030,1185],[4148,1185],[4266,1185],[4324,1171]]},{"from":75,"to":127,"pts":[[3686,1220],[3794,1391],[3912,1391],[4030,1391],[4148,1391],[4266,1391],[4296,1391]]},{"from":78,"to":79,"pts":[[3942,965],[4030,920],[4125,982]]},{"from":78,"to":124,"pts":[[3945,965],[4030,926],[4145,1445]]},{"from":78,"to":132,"pts":[[3951,965],[4030,935],[4148,935],[4266,935],[4378,1221]]},{"from":78,"to":135,"pts":[[3963,965],[4030,945],[4134,1054]]},{"from":78,"to":142,"pts":[[4007,989],[4030,992],[4135,1109]]},{"from":79,"to":80,"pts":[[4180,982],[4266,941],[4358,941]]},{"from":79,"to":83,"pts":[[4227,1001],[4266,1004],[4384,1004],[4502,1004],[4620,1004],[4738,1004],[4856,1004],[4974,1004],[5075,901]]},{"from":79,"to":104,"pts":[[4227,1009],[4266,1015],[4371,1141]]},{"from":80,"to":81,"pts":[[4410,938],[4502,929],[4600,856]]},{"from":80,"to":82,"pts":[[4410,944],[4502,958],[4620,958],[4738,958],[4831,901]]},{"from":81,"to":82,"pts":[[4692,828],[4738,821],[4829,871]]},{"from":81,"to":84,"pts":[[4692,842],[4738,844],[4784,843]]},{"from":81,"to":126,"pts":[[4667,856],[4738,878],[4848,1098]]},{"from":82,"to":83,"pts":[[4900,886],[4974,886],[5056,886]]},{"from":83,"to":94,"pts":[[5124,886],[5206,886],[5292,818]]},{"from":84,"to":85,"pts":[[4928,830],[4974,823],[5067,763]]},{"from":84,"to":93,"pts":[[4928,844],[4974,846],[5009,846]]},{"from":85,"to":86,"pts":[[5140,733],[5206,713],[5282,713]]},{"from":85,"to":89,"pts":[[5151,746],[5206,745],[5311,745],[5416,745],[5507,719]]},{"from":85,"to":90,"pts":[[5151,750],[5206,751],[5311,751],[5416,751],[5529,751],[5641,751],[5721,677]]},{"from":85,"to":133,"pts":[[5133,763],[5206,789],[5303,974]]},{"from":86,"to":87,"pts":[[5331,698],[5416,636],[5503,636]]},{"from":86,"to":89,"pts":[[5341,713],[5416,713],[5507,713]]},{"from":86,"to":92,"pts":[[5341,720],[5416,739],[5529,739],[5641,739],[5737,739],[5833,739],[5896,697]]},{"from":87,"to":88,"pts":[[5555,631],[5641,616],[5711,616]]},{"from":87,"to":90,"pts":[[5555,634],[5641,627],[5711,652]]},{"from":87,"to":92,"pts":[[5555,636],[5641,639],[5737,639],[5833,639],[5889,667]]},{"from":87,"to":119,"pts":[[5555,643],[5641,670],[5727,793]]},{"from":88,"to":92,"pts":[[5763,616],[5833,616],[5899,667]]},{"from":89,"to":91,"pts":[[5551,711],[5641,702],[5668,702]]},{"from":89,"to":92,"pts":[[5551,715],[5641,725],[5737,725],[5833,725],[5889,697]]},{"from":90,"to":92,"pts":[[5763,662],[5833,662],[5863,668]]},{"from":93,"to":129,"pts":[[5171,846],[5206,846],[5308,1343]]},{"from":94,"to":95,"pts":[[5377,803],[5416,803],[5453,803]]},{"from":95,"to":96,"pts":[[5577,788],[5641,768],[5664,768]]},{"from":95,"to":97,"pts":[[5582,818],[5641,834],[5737,834],[5833,834],[5878,818]]},{"from":96,"to":97,"pts":[[5810,768],[5833,768],[5881,788]]},{"from":97,"to":98,"pts":[[5951,788],[6004,763],[6059,763]]},{"from":97,"to":99,"pts":[[5981,803],[6004,803],[6027,803]]},{"from":97,"to":100,"pts":[[5928,818],[6004,941],[6034,941]]},{"from":100,"to":101,"pts":[[6153,928],[6182,921],[6256,921]]},{"from":100,"to":102,"pts":[[6153,954],[6182,961],[6205,961]]},{"from":100,"to":103,"pts":[[6115,956],[6182,1001],[6240,1001]]},{"from":104,"to":105,"pts":[[4463,1156],[4502,1156],[4538,1156]]},{"from":105,"to":106,"pts":[[4641,1141],[4738,1073],[4813,1073]]},{"from":105,"to":107,"pts":[[4702,1153],[4738,1153],[4789,1153]]},{"from":105,"to":108,"pts":[[4689,1171],[4738,1181],[4852,1560]]},{"from":105,"to":111,"pts":[[4659,1171],[4738,1201],[4804,1201]]},{"from":107,"to":113,"pts":[[4923,1153],[4974,1153],[5082,1368]]},{"from":108,"to":109,"pts":[[4890,1572],[4974,1566],[5024,1566]]},{"from":108,"to":112,"pts":[[4890,1574],[4974,1572],[5082,1358]]},{"from":108,"to":113,"pts":[[4890,1579],[4974,1589],[5082,1398]]},{"from":108,"to":137,"pts":[[4890,1581],[4974,1595],[5080,1438]]},{"from":109,"to":110,"pts":[[5156,1566],[5206,1566],[5297,1666]]},{"from":111,"to":112,"pts":[[4909,1201],[4974,1201],[5078,1328]]},{"from":113,"to":114,"pts":[[5140,1383],[5206,1383],[5306,1056]]},{"from":114,"to":115,"pts":[[5393,1041],[5416,1041],[5439,1041]]},{"from":115,"to":116,"pts":[[5538,1026],[5641,857],[5681,857]]},{"from":115,"to":117,"pts":[[5532,1056],[5641,1469],[5727,1600]]},{"from":120,"to":121,"pts":[[3942,1907],[4030,1862],[4105,1862]]},{"from":120,"to":122,"pts":[[4001,1907],[4030,1902],[4082,1902]]},{"from":120,"to":123,"pts":[[4001,1937],[4030,1942],[4089,1942]]},{"from":120,"to":124,"pts":[[3968,1937],[4030,1953],[4144,1475]]},{"from":122,"to":125,"pts":[[4214,1902],[4266,1902],[4379,1593]]},{"from":123,"to":143,"pts":[[4208,1942],[4266,1942],[4380,1507]]},{"from":124,"to":125,"pts":[[4194,1446],[4266,1423],[4373,1563]]},{"from":124,"to":126,"pts":[[4194,1460],[4266,1460],[4384,1460],[4502,1460],[4620,1460],[4738,1460],[4851,1128]]},{"from":124,"to":127,"pts":[[4194,1472],[4266,1492],[4366,1406]]},{"from":127,"to":134,"pts":[[4473,1391],[4502,1391],[4589,1348]]},{"from":129,"to":130,"pts":[[5316,1343],[5416,1064],[5526,1686]]},{"from":129,"to":131,"pts":[[5318,1373],[5416,1569],[5452,1569]]},{"from":132,"to":133,"pts":[[4463,1228],[4502,1224],[4620,1224],[4738,1224],[4856,1224],[4974,1224],[5090,1224],[5206,1224],[5304,1004]]},{"from":132,"to":134,"pts":[[4431,1251],[4502,1273],[4591,1318]]},{"from":135,"to":136,"pts":[[4190,1054],[4266,1027],[4289,1027]]},{"from":135,"to":137,"pts":[[4241,1054],[4266,1050],[4384,1050],[4502,1050],[4620,1050],[4738,1050],[4856,1050],[4974,1050],[5085,1408]]},{"from":135,"to":138,"pts":[[4243,1069],[4266,1070],[4364,996]]},{"from":135,"to":139,"pts":[[4243,1074],[4266,1076],[4384,1076],[4502,1076],[4584,1042]]},{"from":135,"to":140,"pts":[[4207,1084],[4266,1099],[4328,1099]]},{"from":135,"to":141,"pts":[[4186,1084],[4266,1115],[4362,1181]]},{"from":138,"to":139,"pts":[[4410,981],[4502,981],[4582,1012]]},{"from":142,"to":143,"pts":[[4211,1122],[4266,1121],[4379,1477]]},{"from":142,"to":144,"pts":[[4211,1127],[4266,1130],[4372,1261]]},{"from":142,"to":145,"pts":[[4211,1130],[4266,1136],[4375,1318]]},{"from":143,"to":146,"pts":[[4428,1492],[4502,1492],[4605,1388]]},{"from":145,"to":146,"pts":[[4428,1333],[4502,1333],[4576,1358]]},{"from":146,"to":147,"pts":[[4686,1373],[4738,1373],[4761,1373]]}],"short":{"1":"폰노이만 구조·프로그램 내장","2":"컴퓨터 역사·세대","3":"비트·2진수·자리값","4":"진법 변환","5":"소수의 2진 변환","6":"부울 대수","7":"기본 게이트·진리표·범용 게이트","8":"부울 법칙·드모르간","9":"카르노 맵","10":"마스크 연산","11":"조합회로 개념","12":"가산기·감산기","13":"디코더·인코더","14":"멀티플렉서·디멀티플렉서","15":"음수 표현 3가지·범위","16":"2의 보수 뺄셈","17":"오버플로·상태 플래그","18":"시프트 연산","19":"곱셈·나눗셈","20":"부동소수점","21":"코드 종류","22":"팩/언팩 10진수","23":"패리티·해밍 코드","24":"클록","25":"순차회로·동기/비동기","26":"래치","27":"플립플롭","28":"특성표·상태표·여기표","29":"레지스터·시프트 레지스터","30":"카운터","31":"기억장치 특성·접근 방식","32":"SRAM vs DRAM","33":"ROM 종류","34":"CPU 구성","35":"레지스터 역할","36":"메모리 용량 → MAR·MBR 비트 수","37":"시스템 버스","38":"명령어 구성","39":"명령어 종류","40":"명령어 형식","41":"스택","42":"후위·전위 표기","43":"주소 지정 방식","44":"유효주소 계산","45":"마이크로연산","46":"명령어 사이클 4단계","47":"제어장치: 하드와이어드 vs 마이크로프로그램","48":"CPU 성능 계산","49":"파이프라인·클록 수","50":"해저드 3종·해결","51":"RISC vs CISC","52":"기억장치 계층 구조","53":"지역성","54":"캐시 동작 원리","55":"캐시 평균 접근 시간","56":"캐시 사상 3방식","57":"캐시 주소 필드","58":"캐시 교체 알고리즘","59":"캐시 쓰기 정책","60":"자기디스크 구조·접근시간","61":"SSD","62":"RAID","63":"I/O 제어기·인터페이스","64":"I/O 주소 지정: 분리형 vs 메모리 맵","65":"프로그램 I/O","66":"인터럽트","67":"인터럽트 우선순위 판별","68":"DMA","69":"채널·IOP","70":"직렬·병렬 전송, UART","71":"언어 계층","72":"번역 과정·컴파일러 vs 인터프리터","73":"어셈블러 1패스 vs 2패스","74":"링커 정적 vs 동적","75":"로더 4기능·종류","76":"이진 호환성","77":"시스템SW vs 응용SW·유틸리티","78":"운영체제 역할·구성·성능 기준","79":"프로세스·메모리 영역","80":"PCB","81":"프로세스 상태 전이","82":"문맥 교환","83":"스레드","84":"스케줄링 목적·지표","85":"선점 vs 비선점","86":"FCFS","87":"SJF","88":"HRN","89":"RR","90":"SRT","91":"우선순위·MLQ·MFQ","92":"스케줄링 계산","93":"멀티프로세서 스케줄링","94":"병행성·경쟁 조건","95":"임계구역·해결 3조건","96":"상호배제 HW 명령어","97":"세마포어·뮤텍스","98":"모니터","99":"고전 동기화 문제","100":"교착상태·4조건","101":"교착 예방","102":"교착 회피·은행원 알고리즘","103":"교착 탐지·복구","104":"주기억 관리 요구조건","105":"고정/동적 분할·단편화","106":"배치 전략","107":"스와핑·쉐도잉·GC","108":"페이징","109":"페이징 주소 변환","110":"TLB","111":"세그먼테이션","112":"페이징+세그먼테이션 혼용","113":"가상 메모리","114":"페이지 부재 처리 순서","115":"페이지 교체 + 부재 횟수","116":"벨레이디 이상","117":"스래싱·워킹셋·PFF","118":"순차 접근 vs 직접 접근 장치","119":"디스크 스케줄링","120":"파일 시스템·블로킹·버퍼링·스풀링","121":"파일 구조","122":"디스크 공간 할당","123":"파일 접근 제어","124":"UNIX 특징","125":"UFS 4블록·i-node","126":"UNIX 프로세스·장치 관리","127":"리눅스 커널·부팅·배포판","128":"연산 파이프라인·슈퍼스칼라","129":"멀티코어·공유메모리","130":"캐시 일관성","131":"클러스터·그리드·C/S","132":"임베디드 시스템 특징","133":"RTOS","134":"임베디드 리눅스","135":"가상화·하이퍼바이저 Type1 vs Type2","136":"전가상화 vs 반가상화·HW 지원","137":"가상화의 메모리·I/O 관리","138":"JVM","139":"안드로이드 VM·VMware ESXi","140":"컨테이너·도커","141":"NFV·SDN·코틀린·스칼라·로드밸런서","142":"침입자·악성코드","143":"접근 제어","144":"시스템 공격","145":"침입 탐지","146":"보안 강화·방화벽","147":"WEB/WAS·UTM·OSI·DIKW·포렌식"}};
+const NS = 'http://www.w3.org/2000/svg';
+const byId = new Map(D.nodes.map(n => [n.id, n]));
+const chap = new Map(D.chapters.map(c => [c.id, c]));
+const short = id => L.short[id];
+const LABEL = {5:'반드시',4:'중요',3:'보통',2:'여유 되면',1:'눈으로만'};
+const TYPES = {mcq:'객관식',essay:'주관식',calc:'계산',figure:'그림'};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+// ── 자체 문제 생성기 (저장소 src/quiz.js를 그대로 넣음: 시드가 같으면 MCP 서버와 같은 문제) ──
+// 개념 지도에서 객관식 문제를 만든다.
+// 웹 데모(docs/index.html)와 MCP 서버가 이 파일 하나를 같이 쓴다. 시드가 같으면 어디서든 같은 문제가 나온다.
+//
+// 문제 유형 (모두 온톨로지에서 나온다)
+//   def  개념 맞히기: 개념의 "왜 생겼나"를 보여 주고(개념 이름은 □□로 가림) 어떤 개념인지 고른다
+//   pre  선행 찾기:   X를 이해하려면 바로 앞에서 알아야 하는 개념을 고른다 (prerequisite_of 관계)
+//   next 다음 찾기:   X를 알고 나면 바로 이어서 배울 수 있는 개념을 고른다
+// 오답 보기는 일부러 헷갈리게 고른다: 같은 장 개념, 그리고 방향이 반대인 개념(선행 문제엔 뒤 개념, 다음 문제엔 앞 개념).
+
+const QUIZ_SCOPES = {
+  all: { label: '전체', from: 1, to: 22 },
+  core: { label: '★5 반드시', from: 1, to: 22, stars: 5 },
+  hw: { label: '하드웨어 (1~10장)', from: 1, to: 10 },
+  os: { label: 'OS·시스템SW (11~18장)', from: 11, to: 18 },
+  trend: { label: '최신 기술 (19~22장)', from: 19, to: 22 },
+};
+const QUIZ_TYPES = { def: '개념 맞히기', pre: '선행 찾기', next: '다음 찾기' };
+const LETTERS = 'ABCD';
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 개념 이름에서 가릴 낱말: "곱셈·나눗셈 (부스 알고리즘)" → 곱셈·나눗셈, 곱셈, 나눗셈, 부스 알고리즘
+function titleTerms(title) {
+  const base = title.replace(/^\[범위 밖\]\s*/, '');
+  const main = base.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  const inner = (base.match(/\((.*?)\)/) || [])[1];
+  const parts = [main, ...main.split(/[·/,+]| vs /), ...(inner ? inner.split(/[·,/]/) : [])];
+  return [...new Set(parts.map(s => s.trim()).filter(s => s.length >= 2))].sort((a, b) => b.length - a.length);
+}
+const maskTerms = (text, terms) => terms.reduce((t, w) => t.split(w).join('□□'), text);
+
+const cut = (s, n) => (s.length > n ? s.slice(0, n).trimEnd() + '…' : s);
+
+/**
+ * @param nodes 온톨로지 개념 배열 ({id, title, stars, chapter, why, core, prereq, next})
+ * @param opts  {count=10, scope='all', seed=1, ids} ids를 주면 그 개념들만으로 낸다 (복습 후 다시 풀기)
+ */
+function makeQuiz(nodes, opts = {}) {
+  const seed = (Number(opts.seed) || 1) >>> 0;
+  const scope = QUIZ_SCOPES[opts.scope] ? opts.scope : 'all';
+  const rand = mulberry32(seed);
+  const shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const usable = n => !!n && !n.title.startsWith('[범위 밖]');
+  const memoA = new Map(), memoD = new Map();
+  const walk = (id, key, memo) => {
+    if (memo.has(id)) return memo.get(id);
+    const s = new Set();
+    for (const p of byId.get(id)[key]) { s.add(p); for (const x of walk(p, key, memo)) s.add(x); }
+    memo.set(id, s);
+    return s;
+  };
+  const anc = id => walk(id, 'prereq', memoA), desc = id => walk(id, 'next', memoD);
+  const okIds = list => list.filter(i => usable(byId.get(i)));
+  const can = (n, t) => (t === 'def' ? !!n.why : t === 'pre' ? okIds(n.prereq).length > 0 : okIds(n.next).length > 0);
+  const T = id => byId.get(id).title;
+
+  // 문제를 낼 개념: 범위 안, 별 2개 이상. 중요한 개념이 더 자주 나오게 별점 가중 셔플.
+  const S = QUIZ_SCOPES[scope];
+  let pool = Array.isArray(opts.ids) && opts.ids.length
+    ? [...new Set(opts.ids.map(Number))].map(i => byId.get(i)).filter(usable)
+    : nodes.filter(n => usable(n) && n.stars >= 2 && n.chapter >= S.from && n.chapter <= S.to && (!S.stars || n.stars >= S.stars));
+  pool = pool.map(n => ({ n, k: Math.pow(rand(), 1 / Math.max(1, n.stars)) })).sort((a, b) => b.k - a.k).map(x => x.n);
+  const count = Math.max(1, Math.min(20, Number(opts.count) || 10, pool.length));
+
+  // 유형 비율: 개념 맞히기 40% · 선행 찾기 40% · 다음 찾기 20%
+  const plan = shuffle(Array.from({ length: count }, (_, i) => (i < Math.round(count * 0.4) ? 'def' : i < Math.round(count * 0.8) ? 'pre' : 'next')));
+
+  const chapterOf = id => byId.get(id).chapter;
+  const inChapters = chs => nodes.filter(n => chs.includes(n.chapter)).map(n => n.id);
+  const near = ch => nodes.filter(n => Math.abs(n.chapter - ch) <= 1).map(n => n.id);
+  const everyone = nodes.map(n => n.id);
+  function distract(correct, ban, tiers) {
+    const out = [], seen = new Set([correct, ...ban]);
+    for (const [list, cap] of tiers) {
+      let took = 0;
+      for (const id of shuffle(list)) {
+        if (out.length >= 3 || took >= cap) break;
+        if (seen.has(id) || !usable(byId.get(id))) continue;
+        seen.add(id); out.push(id); took++;
+      }
+    }
+    return out.length === 3 ? out : null;
+  }
+
+  function build(n, type) {
+    let prompt, quote = null, correct, blame, ds, explain, noteFor;
+    if (type === 'def') {
+      correct = n.id; blame = n.id;
+      prompt = '이 문제를 해결하려고 나온 개념은?';
+      quote = maskTerms(n.why, titleTerms(n.title));
+      ds = distract(correct, [], [[inChapters([n.chapter]), 3], [near(n.chapter), 3], [everyone, 3]]);
+      explain = `「${n.title}」 ${n.why}. 핵심: ${cut(n.core, 110)}`;
+      noteFor = id => `고른 「${T(id)}」는 이 문제를 풀려고 나왔어: ${byId.get(id).why}`;
+    } else if (type === 'pre') {
+      const cand = okIds(n.prereq);
+      correct = cand[Math.floor(rand() * cand.length)]; blame = n.id;
+      prompt = `「${n.title}」 — 이걸 이해하려면 바로 앞에서 알아야 하는 개념은?`;
+      ds = distract(correct, [...anc(n.id), n.id], [[[...desc(n.id)], 1], [inChapters([n.chapter, chapterOf(correct)]), 3], [near(n.chapter), 3], [everyone, 3]]);
+      explain = `「${n.title}」의 바로 앞 개념: ${okIds(n.prereq).map(T).join(' · ')}.`;
+      noteFor = id => (desc(n.id).has(id) ? `고른 「${T(id)}」는 「${n.title}」 다음에 배우는 쪽이야. 방향이 반대야.` : `고른 「${T(id)}」는 「${n.title}」의 선행 개념이 아니야.`);
+    } else {
+      const cand = okIds(n.next);
+      correct = cand[Math.floor(rand() * cand.length)]; blame = correct;
+      prompt = `「${n.title}」 — 이걸 알고 나면 바로 이어서 배울 수 있는 개념은?`;
+      ds = distract(correct, [...desc(n.id), n.id], [[[...anc(n.id)], 1], [inChapters([n.chapter, chapterOf(correct)]), 3], [near(n.chapter), 3], [everyone, 3]]);
+      explain = `「${n.title}」에서 바로 열리는 개념: ${okIds(n.next).map(T).join(' · ')}.`;
+      noteFor = id => (anc(n.id).has(id) ? `고른 「${T(id)}」는 「${n.title}」보다 먼저 배우는 쪽이야. 방향이 반대야.` : `고른 「${T(id)}」는 「${n.title}」에서 바로 열리지 않아.`);
+    }
+    if (!ds) return null;
+    const ids = shuffle([correct, ...ds]);
+    return {
+      type, type_label: QUIZ_TYPES[type], prompt, quote,
+      options: ids.map((id, k) => ({ letter: LETTERS[k], id, title: T(id), note: id === correct ? '' : noteFor(id) })),
+      answer: ids.indexOf(correct), answer_id: correct, blame, explain,
+    };
+  }
+
+  // 슬롯마다 그 유형을 낼 수 있는 개념을 찾는다. 오답 보기가 모자라면(뿌리 개념의 "다음 찾기" 등) 다른 유형으로 바꾼다.
+  const left = pool.slice(), questions = [];
+  for (const want of plan) {
+    let q = null;
+    while (!q && left.length) {
+      let k = left.findIndex(n => can(n, want));
+      if (k < 0) k = 0;
+      const n = left.splice(k, 1)[0];
+      for (const t of [want, 'def', 'pre', 'next']) { if (can(n, t) && (q = build(n, t))) break; }
+    }
+    if (!q) break;
+    questions.push({ no: questions.length + 1, ...q });
+  }
+  const custom = Array.isArray(opts.ids) && opts.ids.length > 0;
+  return { seed, scope: custom ? 'custom' : scope, scope_label: custom ? '고른 개념' : S.label, questions };
+}
+
+// 학생 답(0~3, null = 건너뜀)을 채점한다. 틀린 문제의 blame 개념이 진단의 입력이 된다.
+function gradeQuiz(quiz, picks) {
+  const results = quiz.questions.map((q, i) => {
+    const p = picks[i];
+    const chosen = p == null || !q.options[p] ? null : q.options[p];
+    return { no: q.no, type: q.type, correct: p === q.answer, chosen, answer: q.options[q.answer], blame: q.blame, note: chosen ? chosen.note : '', explain: q.explain };
+  });
+  const wrong = results.filter(r => !r.correct);
+  return { score: results.length - wrong.length, total: results.length, results, wrong_concepts: [...new Set(wrong.map(r => r.blame))].sort((a, b) => a - b) };
+}
+
+
+// ── 그래프 추론: 선행 전체(조상)와 깊이 ──
+const depthMemo = new Map();
+function depth(id){ if(depthMemo.has(id)) return depthMemo.get(id);
+  const p = byId.get(id).prereq; const d = p.length ? 1 + Math.max(...p.map(depth)) : 0; depthMemo.set(id,d); return d; }
+function ancestors(id, acc = new Set()){ for(const p of byId.get(id).prereq){ if(!acc.has(p)){ acc.add(p); ancestors(p, acc);} } return acc; }
+function descendants(id, acc = new Set()){ for(const q of byId.get(id).next){ if(!acc.has(q)){ acc.add(q); descendants(q, acc);} } return acc; }
+
+// ── 헤더 ──
+const refs = D.nodes.reduce((a,n)=>a+n.exam.refs.length,0);
+$('#stats').innerHTML = [[D.nodes.length,'개념'],[D.edges.length,'선행 관계'],[D.chapters.length,'장'],[D.nodes.filter(n=>n.root).length,'뿌리 개념'],[refs,'출제 근거']]
+  .map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+$('#schema').innerHTML = `<span><i>Concept</i> ─<em>prerequisite_of</em>→ <i>Concept</i></span><span><i>Concept</i> ─belongs_to→ <i>Chapter</i></span><span><i>Concept</i> ─tested_by→ <i>ExamItem</i></span><span>DAG 검증: 사이클 0 · 양방향 일치 ${D.edges.length}/${D.edges.length}</span>`;
+$('#legend').innerHTML = [5,4,3,2,1].map(s=>`<span><i class="sw" style="background:var(--h${s})"></i>★${s} ${LABEL[s]}</span>`).join('')
+  + `<span><i class="sw" style="border:1.5px dashed var(--ink)"></i>뿌리</span><span><i class="ln" style="border-color:var(--anc)"></i>선행</span><span><i class="ln" style="border-color:var(--nxt);border-top-style:dashed"></i>바로 열림</span>`;
+$('#foot').innerHTML = '데이터: 통컴시 개념탐색표 → 온톨로지 JSON 변환 (개념 147 · 관계 222 · 장 22 · 인과 사슬 12). 출제 확률은 교재·공식 예시 분석 기반 추정치야. 강의를 읽고 문제를 풀면서 막힌 곳을 찾으려면 <a href="https://charming-chanmin.github.io/cs-ontology-agent/" style="color:var(--anc)">학습 코치</a>로 가.';
+
+// ── SVG 뷰어: 드래그 이동, 휠·핀치 확대 ──
+const svg = $('#svg'), scene = $('#scene');
+let vb = {x:0,y:0,w:1000,h:600};
+const setVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+const rect = () => svg.getBoundingClientRect();
+function fit(b, mode){
+  const r = rect(); if(!r.width || !r.height) return;
+  const pad = 24, padB = 44, ar = r.height / r.width;
+  let w = b.w + pad*2, h = b.h + pad + padB;
+  if(mode === 'width'){ w = Math.max(w, r.width / 1.25); h = w * ar; vb = {x:b.x - pad - (w - b.w - pad*2)/2, y:b.y - pad, w, h}; }
+  else { if(h / w > ar) w = h / ar; else h = w * ar; vb = {x:b.x + b.w/2 - w/2, y:b.y - pad - (h - b.h - pad - padB)/2, w, h}; }
+  setVB();
+}
+function zoomAt(f, cx, cy){ const nw = Math.min(Math.max(vb.w * f, 120), 9000); const k = nw / vb.w;
+  vb = {x: cx - (cx - vb.x)*k, y: cy - (cy - vb.y)*k, w: nw, h: vb.h*k}; setVB(); }
+function toSvg(ev){ const r = rect(); return [vb.x + (ev.clientX - r.left) / r.width * vb.w, vb.y + (ev.clientY - r.top) / r.height * vb.h]; }
+svg.addEventListener('wheel', e => { e.preventDefault(); const [x,y] = toSvg(e); zoomAt(e.deltaY > 0 ? 1.12 : 1/1.12, x, y); }, {passive:false});
+const ptrs = new Map(); let pinch0 = 0, moved = 0;
+svg.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, e); moved = 0; if(ptrs.size === 2){ const [a,b] = [...ptrs.values()]; pinch0 = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY); } });
+svg.addEventListener('pointermove', e => {
+  if(!ptrs.has(e.pointerId)) return; const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, e);
+  const r = rect(), s = vb.w / r.width;
+  if(ptrs.size === 1){ const dx = e.clientX - prev.clientX, dy = e.clientY - prev.clientY; moved += Math.abs(dx) + Math.abs(dy);
+    if(moved > 4){ if(!svg.hasPointerCapture(e.pointerId)) svg.setPointerCapture(e.pointerId); vb.x -= dx*s; vb.y -= dy*s; setVB(); } }
+  else if(ptrs.size === 2){ const [a,b] = [...ptrs.values()]; const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    if(pinch0){ const [cx,cy] = toSvg({clientX:(a.clientX+b.clientX)/2, clientY:(a.clientY+b.clientY)/2}); zoomAt(pinch0/d, cx, cy); } pinch0 = d; moved = 99; }
+});
+['pointerup','pointercancel','pointerleave'].forEach(t => svg.addEventListener(t, e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = 0; }));
+$('#zi').onclick = () => zoomAt(1/1.3, vb.x + vb.w/2, vb.y + vb.h/2);
+$('#zo').onclick = () => zoomAt(1.3, vb.x + vb.w/2, vb.y + vb.h/2);
+$('#zf').onclick = () => render(true);
+
+// ── 그리기 ──
+function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+function pathD(pts){ if(pts.length < 3) return `M${pts[0][0]},${pts[0][1]}L${pts[pts.length-1][0]},${pts[pts.length-1][1]}`;
+  let d = `M${pts[0][0]},${pts[0][1]}`; for(let i=1;i<pts.length-1;i++){ const mx=(pts[i][0]+pts[i+1][0])/2, my=(pts[i][1]+pts[i+1][1])/2; d += `Q${pts[i][0]},${pts[i][1]} ${mx},${my}`; }
+  const z = pts[pts.length-1]; return d + `L${z[0]},${z[1]}`; }
+function drawNode(id, x, y, w, h, cls){
+  const n = byId.get(id);
+  const g = el('g', {class:`node h${n.stars}${n.root?' root':''} ${cls}`, transform:`translate(${x - w/2},${y - h/2})`, tabindex:0, role:'button', 'aria-label':`${id} ${n.title}`}, scene);
+  el('rect', {width:w, height:h, rx:6}, g);
+  const t = el('text', {x:10, y:h/2 + 4.5}, g);
+  const a = el('tspan', {class:'num'}, t); a.textContent = id + ' ';
+  const b = el('tspan', {}, t); b.textContent = short(id);
+  g.addEventListener('click', () => { if(moved < 5) select(id); });
+  g.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); select(id); } });
+  return g;
+}
+
+let view = 'line', sel = 66;
+function render(refit){
+  scene.textContent = '';
+  document.body.classList.toggle('quizmap', view === 'diag' && !dg);
+  if(view === 'diag'){ renderDiag(refit); return; }
+  const A = ancestors(sel), N = new Set(byId.get(sel).next);
+  if(view === 'map' || typeof dagre === 'undefined'){
+    const keep = new Set([...A, sel, ...N]);
+    for(const e of L.edges){
+      const inLine = keep.has(e.from) && keep.has(e.to) && (A.has(e.from) || e.from === sel) && (A.has(e.to) || e.to === sel);
+      const toNext = e.from === sel && N.has(e.to);
+      el('path', {d:pathD(e.pts), class:`edge${inLine?' anc':toNext?' nxt':''}${inLine||toNext?'':' dim'}`, 'marker-end':`url(#${inLine?'mA':toNext?'mN':'mD'})`}, scene);
+    }
+    for(const n of D.nodes){ const p = L.pos[n.id];
+      drawNode(n.id, p.x, p.y, p.w, p.h, (n.id===sel?'sel':N.has(n.id)?'next':'') + (keep.has(n.id)?'':' dim')); }
+    if(refit) fit({x:0, y:0, w:L.width, h:L.height});
+    $('#cap').textContent = `전체 지도 · 왼쪽이 출발점, 오른쪽으로 갈수록 심화 · 끌어서 이동, 휠·핀치로 확대`;
+  } else {
+    const ids = [...A, sel, ...N];
+    const g = new dagre.graphlib.Graph(); g.setGraph({rankdir:'TB', nodesep:12, ranksep:30, marginx:10, marginy:10}); g.setDefaultEdgeLabel(()=>({}));
+    for(const id of ids){ const p = L.pos[id]; g.setNode(String(id), {width:p.w, height:p.h}); }
+    const es = D.edges.filter(e => (A.has(e.to) || e.to === sel) && (A.has(e.from)) || (e.from === sel && N.has(e.to)));
+    for(const e of es) g.setEdge(String(e.from), String(e.to));
+    dagre.layout(g);
+    for(const e of es){ const toNext = e.from === sel && N.has(e.to);
+      el('path', {d:pathD(g.edge(String(e.from), String(e.to)).points.map(p=>[p.x,p.y])), class:`edge ${toNext?'nxt':'anc'}`, 'marker-end':`url(#${toNext?'mN':'mA'})`}, scene); }
+    for(const id of ids){ const p = g.node(String(id)); drawNode(id, p.x, p.y, p.width, p.height, id===sel?'sel':N.has(id)?'next':''); }
+    const gi = g.graph(); fit({x:0, y:0, w:gi.width, h:gi.height}, gi.height > gi.width * 1.4 ? 'width' : 'all');
+    $('#cap').textContent = `계보 · 위에서 아래로 = 먼저 알아야 할 것 → ${sel}번 → 바로 열리는 것`;
+  }
+}
+
+// ── 진단 추론 ──
+const ancMemo = new Map(); const anc = id => { if(!ancMemo.has(id)) ancMemo.set(id, ancestors(id)); return ancMemo.get(id); };
+function closure(set){ const s = new Set(); for(const k of set){ s.add(k); for(const a of anc(k)) s.add(a); } return s; }
+function rankShared(W, exclude = new Set()){
+  const cov = new Map();
+  for(const w of W) for(const a of anc(w)) if(!exclude.has(a) && !W.includes(a)) cov.set(a, (cov.get(a) || 0) + 1);
+  const c = [...cov.keys()];
+  const front = c.filter(a => !c.some(b => b !== a && cov.get(b) >= cov.get(a) && anc(b).has(a)));
+  return front.map(a => ({id:a, cov:cov.get(a), depth:depth(a)})).sort((x,y) => y.cov - x.cov || y.depth - x.depth || byId.get(y.id).stars - byId.get(x.id).stars);
+}
+const MAXQ = 6;
+let dg = null, qz = null;
+// 문제: 범위를 고르면 10문제. 틀린 문제는 책임 개념(blame)으로 모여 진단의 입력이 된다.
+const newSeed = () => ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0) || 1;
+function newQuiz(scope, ids){ const seed = newSeed(); qz = {scope, ids:ids || null, seed, data:makeQuiz(D.nodes, {count:10, scope, seed, ids}), i:0, picks:[], done:false}; dg = null; }
+function graded(){ return gradeQuiz(qz.data, qz.data.questions.map((_, i) => qz.picks[i] ?? null)); }
+function startDiag(){
+  const g = graded();
+  dg = {W:g.wrong_concepts, wrong:g.results.filter(r => !r.correct), known:new Set(), gaps:new Set(), asked:[], done:false};
+  dg.q = nextQuestion(); if(dg.q == null) dg.done = true;
+}
+function nextQuestion(){
+  if(!dg || dg.asked.length >= MAXQ) return null;
+  const askedIds = new Set(dg.asked.map(a => a.id)), kc = closure(dg.known);
+  const deeper = [...dg.gaps].flatMap(g => byId.get(g).prereq).filter(p => !askedIds.has(p) && !kc.has(p) && !dg.W.includes(p))
+    .sort((a,b) => byId.get(b).stars - byId.get(a).stars || depth(b) - depth(a));
+  if(deeper.length) return deeper[0];
+  const r = rankShared(dg.W, new Set([...kc, ...askedIds]));
+  const pick = r.find(c => !askedIds.has(c.id) && !kc.has(c.id));
+  return pick ? pick.id : null;
+}
+function answer(id, ans){ dg.asked.push({id, ans}); if(ans === 'know') dg.known.add(id); if(ans === 'gap') dg.gaps.add(id); dg.q = nextQuestion(); if(dg.q == null) dg.done = true; }
+const LINK = 5;
+function chain(r, w){
+  if(r === w) return [w]; if(!anc(w).has(r)) return [];
+  const prev = new Map([[r, null]]), queue = [r];
+  while(queue.length && !prev.has(w)){ const x = queue.shift();
+    for(const y of [...byId.get(x).next].sort((a,b) => a - b)) if((y === w || anc(w).has(y)) && !prev.has(y)){ prev.set(y, x); queue.push(y); } }
+  const out = []; for(let x = w; x != null; x = prev.get(x)) out.push(x); return out.reverse();
+}
+function result(){
+  const gaps = [...dg.gaps];
+  let roots = gaps.filter(g => !gaps.some(h => h !== g && anc(g).has(h)));
+  const direct = roots.length === 0;
+  if(direct) roots = dg.W.slice();
+  // 틀린 개념마다 가장 가까운 "헷갈림" 개념에서 가장 짧은 선행 사슬만 잇는다. LINK보다 멀면 원인으로 보지 않는다
+  const path = new Set([...dg.W, ...gaps]);
+  for(const w of dg.W){ let best = null;
+    for(const g of gaps){ const c = chain(g, w); if(c.length && c.length <= LINK && (!best || c.length < best.length)) best = c; }
+    if(best) for(const x of best) path.add(x); }
+  const kc = closure(dg.known);
+  const order = [...path].filter(x => !kc.has(x) || dg.W.includes(x) || dg.gaps.has(x)).sort((a,b) => depth(a) - depth(b) || a - b);
+  return {roots, order, direct, all:[...path]};
+}
+function diagNodes(){
+  if(!dg || !dg.W.length) return new Set();
+  const show = new Set(dg.W);
+  if(dg.done){ for(const x of result().all) show.add(x); return show; }
+  const top = rankShared(dg.W).slice(0, 5).map(c => c.id).concat([...dg.gaps], dg.q != null ? [dg.q] : []);
+  for(const c of top){ show.add(c); for(const w of dg.W) if(anc(w).has(c)) for(const x of anc(w)) if(anc(x).has(c)) show.add(x); }
+  return show;
+}
+
+// ── AI 코치 (sample 캡빌리티: Claude가 온톨로지 도구를 직접 호출) ──
+const sampleP = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('sample').catch(() => null) : Promise.resolve(null);
+const AI_ERR = {not_granted:'Claude 사용을 허용하지 않아서 AI 코치를 쓸 수 없어.', sampling_disabled:'이 계정에서는 Claude를 쓸 수 없어.', rate_limited:'요청이 많아. 잠시 뒤에 다시 눌러 줘.', session_expired:'다시 로그인해야 해.', refused:'이 요청에는 답할 수 없대. 입력을 바꿔 봐.', empty_completion:'답이 비었어. 다시 눌러 줘.', upstream_error:'연결이 끊겼어. 다시 눌러 줘.'};
+function aiTools(log){
+  const T = i => ({id:i, title:byId.get(i).title});
+  return [
+    {name:'get_quiz_results', description:'학생이 푼 자동 생성 문제의 결과를 돌려줘: 점수, 그리고 틀린 문제마다 유형, 질문, 학생이 고른 답, 정답, 약한 곳으로 본 개념(blame).',
+      execute:() => { log('get_quiz_results()'); const Q = qz.data.questions;
+        return {score:`${Q.length - dg.wrong.length}/${Q.length}`, wrong:dg.wrong.map(r => { const q = Q[r.no - 1];
+          return {no:r.no, type:QUIZ_TYPES[r.type], question:q.prompt + (q.quote ? ' / ' + q.quote : ''), chosen:r.chosen ? r.chosen.title : null, answer:r.answer.title, blame:T(r.blame)}; })}; }},
+    {name:'rank_shared_prerequisites', description:'개념 id 여러 개를 받아, 그 개념들이 공통으로 기대는 가장 구체적인 선행 개념을 공유 수(coverage)가 큰 순서로 최대 8개 돌려줘.',
+      inputSchema:{type:'object', properties:{ids:{type:'array', items:{type:'integer'}}}, required:['ids']},
+      execute:({ids}) => { const a = (Array.isArray(ids) ? ids : []).map(Number).filter(i => byId.has(i)); log(`rank_shared_prerequisites(${a.join(', ')})`);
+        return rankShared(a).slice(0, 8).map(c => ({...T(c.id), coverage:`${c.cov}/${a.length}`, depth:c.depth})); }},
+    {name:'get_concept', description:'개념 하나의 정의(왜 생겼나, 핵심, 계산 이유), 중요도 별점, 바로 앞 개념, 바로 열리는 개념을 돌려줘.',
+      inputSchema:{type:'object', properties:{id:{type:'integer'}}, required:['id']},
+      execute:({id}) => { const n = byId.get(Number(id)); log(`get_concept(${id})`); if(!n) throw new Error('없는 개념 번호야');
+        return {id:n.id, title:n.title, stars:n.stars, chapter:chap.get(n.chapter).title, why:n.why, core:n.core.slice(0, 500), calc:n.calc, prereq:n.prereq.map(T), next:n.next.map(T)}; }},
+    {name:'get_prerequisite_path', description:'개념 하나를 이해하는 데 필요한 모든 선행 개념을 깊이별(L0=출발점)로 돌려줘.',
+      inputSchema:{type:'object', properties:{id:{type:'integer'}}, required:['id']},
+      execute:({id}) => { const i = Number(id); log(`get_prerequisite_path(${id})`); if(!byId.has(i)) throw new Error('없는 개념 번호야');
+        const lv = {}; for(const a of anc(i)){ (lv['L' + depth(a)] ||= []).push(T(a)); } return lv; }},
+    {name:'get_self_check_results', description:'학생이 확인 질문에 직접 답한 결과를 돌려줘: known = 설명할 수 있다고 한 개념, confused = 헷갈린다고 한 개념.',
+      execute:() => { log('get_self_check_results()'); return {known:[...dg.known].map(T), confused:[...dg.gaps].map(T)}; }},
+  ];
+}
+let aiCtl = null;
+async function runAI(){
+  const s = await sampleP; if(!s || !dg) return;
+  const btn = $('#aiRun'), out = $('#aiOut'), tr = $('#aiTrace'), stop = $('#aiStop');
+  btn.disabled = true; stop.hidden = false; out.textContent = '생각하는 중…'; tr.textContent = ''; tr.hidden = false;
+  const log = t => { tr.textContent += '→ ' + t + '\n'; tr.scrollTop = tr.scrollHeight; };
+  const lim = await s.limits().catch(() => null);
+  const useTools = !!(lim && lim.tools);
+  const rules = `너는 독학사 컴퓨터공학 수험생의 오답 진단 코치야. 학생은 자바를 쓰는 초급 개발자야.
+학생은 개념 지도에서 자동으로 만든 4지선다 문제를 풀었고, 틀린 문제가 가리키는 개념을 받았어.
+${useTools ? '반드시 도구로 개념 온톨로지를 조회해서 근거를 찾아. 순서: get_quiz_results → rank_shared_prerequisites → get_self_check_results → 필요하면 get_concept / get_prerequisite_path.' : '아래 온톨로지 조회 결과만 근거로 써.'}
+온톨로지에 없는 내용은 지어내지 마. 개념을 말할 땐 번호를 붙여.
+답은 한국어 반말, 짧게, 이 형식으로:
+진단: 진짜 막힌 지점 1~2개와 그렇게 본 근거 (틀린 개념 몇 개가 그 개념을 거쳐 가는지)
+복습 순서: 최대 5단계. 각 줄 "번호 개념 — 왜 먼저인지 한 줄 — 자바 비유 한 줄"
+오늘 할 일: 한 줄`;
+  let data = '';
+  if(!useTools){ const r = dg.done ? result() : null;
+    data = '\n\n[온톨로지 조회 결과]\n' + JSON.stringify({wrong_questions:dg.wrong.map(r => ({no:r.no, type:QUIZ_TYPES[r.type], chosen:r.chosen ? r.chosen.title : null, answer:r.answer.title, blame:r.blame})), wrong_concepts:dg.W.map(i => ({id:i, title:byId.get(i).title})), shared:rankShared(dg.W).slice(0,6).map(c => ({id:c.id, title:byId.get(c.id).title, coverage:c.cov})), known:[...dg.known], confused:[...dg.gaps], review_path:r ? r.order : []}); }
+  aiCtl = new AbortController();
+  try{
+    const {text, truncated} = await s(rules + '\n\n틀린 개념 id: ' + dg.W.join(', ') + data, {signal:aiCtl.signal, onText:({text}) => { out.textContent = text; }, ...(useTools ? {tools:aiTools(log)} : {}), modelTier:'default'});
+    out.textContent = text + (truncated ? '\n\n(답이 길어서 중간에 끊겼어.)' : '');
+  }catch(e){
+    out.textContent = e.text || '';
+    if(e.code !== 'cancelled') out.textContent += (out.textContent ? '\n\n' : '') + (AI_ERR[e.code] || '잠깐 문제가 생겼어. 다시 눌러 줘.');
+    if(e.code === 'not_granted' || e.code === 'sampling_disabled'){ $('#aiBox').hidden = true; }
+  }finally{ btn.disabled = false; stop.hidden = true; }
+}
+
+// ── 문제 패널 ──
+function quizPanel(){
+  const P = $('#panel'), Q = qz.data.questions, n = Q.length, q = Q[qz.i], p = qz.picks[qz.i];
+  const right = Q.filter((x, i) => qz.picks[i] === x.answer).length, answered = Q.filter((_, i) => qz.picks[i] != null).length;
+  let h = `<div class="diag"><div><div class="kick"><span>자체 문제 · 개념 지도에서 자동 생성</span></div>
+    <h2>문제 풀기 → 오답 진단</h2><p class="note">교재 없이 바로 풀 수 있어. 문제는 개념의 정의와 선행 관계에서 만들고, 틀린 문제는 자동으로 모여서 진단으로 넘어가.</p></div>
+    <div class="chips" role="group" aria-label="출제 범위">${Object.entries(QUIZ_SCOPES).map(([k, v]) => `<button class="chip scope" data-scope="${k}" aria-pressed="${!qz.ids && qz.scope === k}">${v.label}</button>`).join('')}${qz.ids ? `<button class="chip scope" aria-pressed="true" disabled>복습한 개념</button>` : ''}</div>
+    <div class="prog"><span class="ref">${qz.done ? n : qz.i + 1} / ${n}</span><div class="bar" role="img" aria-label="${n}문제 중 ${answered}문제 풂"><i style="width:${answered / n * 100}%"></i></div><span class="ref">맞힘 ${right}</span></div>`;
+  if(!qz.done){
+    h += `<div class="ask"><div class="kick"><span>Q${q.no} · ${q.type_label}</span></div><p class="qp">${esc(q.prompt)}</p>${q.quote ? `<blockquote>${esc(q.quote)}</blockquote>` : ''}
+      <div class="opts">${q.options.map((o, k) => `<button class="opt${p == null ? '' : k === q.answer ? ' ok' : k === p ? ' bad' : ' off'}" data-k="${k}"${p == null ? '' : ' aria-disabled="true"'}><b>${o.letter}</b><span>${esc(o.title)}</span></button>`).join('')}</div>`;
+    if(p != null){ const ok = p === q.answer;
+      h += `<div class="fb ${ok ? 'ok' : 'bad'}" role="status"><p><b>${ok ? '✓ 맞았어.' : `✗ 정답은 ${q.options[q.answer].letter}.`}</b> ${ok ? '' : esc(q.options[p].note)}</p><p class="note">${esc(q.explain)}</p></div>
+        <div class="row"><button class="btn" id="qNext">${qz.i < n - 1 ? '다음 문제' : '결과 보기'}</button></div>`;
+    } else h += `<p class="note kbd">키보드로는 1~4 또는 A~D</p>`;
+    h += `</div>`;
+  } else {
+    const g = graded(), wrong = g.results.filter(r => !r.correct);
+    h += `<div class="score"><b>${g.score}</b><span class="of">/ ${g.total}</span><span class="note">${wrong.length ? `틀린 문제 ${wrong.length}개 → 약한 개념 ${g.wrong_concepts.length}개` : '다 맞았어. 범위를 바꿔서 더 풀어 봐.'}</span></div>`;
+    if(wrong.length) h += `<div><h3>틀린 문제가 가리키는 개념</h3><ol class="review">${wrong.map(r => `<li><button class="chip" data-id="${r.blame}"><span class="n">${r.blame}</span>${esc(short(r.blame))}</button> <span class="meta">Q${r.no} ${QUIZ_TYPES[r.type]}</span></li>`).join('')}</ol>
+      <p class="note" style="margin-top:6px">개념 맞히기를 틀리면 그 개념, 선행 찾기를 틀리면 질문 속 개념, 다음 찾기를 틀리면 정답 개념을 약한 곳으로 봐.</p></div>`;
+    h += `<div class="row">${wrong.length ? '<button class="btn" id="qDiag">틀린 개념으로 진단하기</button>' : ''}<button class="btn${wrong.length ? ' ghost' : ''}" id="qNew">새 문제 10개</button></div>`;
+  }
+  P.innerHTML = h + `</div>`;
+  P.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => { newQuiz(b.dataset.scope); render(true); quizPanel(); });
+  P.querySelectorAll('.opt').forEach(b => b.onclick = () => choose(+b.dataset.k));
+  const nx = $('#qNext'); if(nx) nx.onclick = advance;
+  const dgb = $('#qDiag'); if(dgb) dgb.onclick = () => { startDiag(); render(true); diagPanel(); P.scrollTop = 0; };
+  const nw = $('#qNew'); if(nw) nw.onclick = () => { newQuiz(qz.ids ? 'all' : qz.scope); render(true); quizPanel(); };
+  P.querySelectorAll('.chip[data-id]').forEach(b => b.onclick = () => select(+b.dataset.id));
+}
+function choose(k){
+  if(!qz || qz.done || qz.picks[qz.i] != null || !qz.data.questions[qz.i].options[k]) return;
+  qz.picks[qz.i] = k; render(false); quizPanel(); const nx = $('#qNext'); if(nx) nx.focus({preventScroll:true});
+}
+function advance(){
+  if(qz.i < qz.data.questions.length - 1) qz.i++; else qz.done = true;
+  render(false); quizPanel(); const f = $('.opt') || $('#qDiag') || $('#qNew'); if(f) f.focus({preventScroll:true});
+}
+document.addEventListener('keydown', e => {
+  if(view !== 'diag' || dg || !qz || e.target.closest('input,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = '1234'.indexOf(e.key) >= 0 ? '1234'.indexOf(e.key) : 'abcd'.indexOf(e.key.toLowerCase());
+  if(e.key.length === 1 && k >= 0 && !qz.done && qz.picks[qz.i] == null){ e.preventDefault(); choose(k); }
+});
+
+// ── 진단 패널 ──
+function diagPanel(){
+  if(!dg) return quizPanel();
+  const P = $('#panel');
+  let h = `<div class="diag"><div><div class="kick"><span>Agent · 온톨로지 추론</span></div>
+    <h2>오답 진단</h2><p class="note">틀린 문제가 가리키는 개념에서 출발해 개념 지도를 거꾸로 따라가. 여러 개념이 같이 기대는 선행 개념을 찾고, 몇 가지를 직접 물어본 뒤 진짜 막힌 지점과 복습 순서를 정해.</p>
+    <div class="row" style="margin-top:8px"><button class="btn ghost" id="dBack">← 문제 결과로</button></div></div>`;
+  h += `<div class="step"><b>1</b><div><h3>틀린 문제가 가리키는 개념 · ${dg.W.length}</h3>${chips(dg.W, '')}
+    <p class="note" style="margin-top:6px">${dg.wrong.map(r => `Q${r.no} ${QUIZ_TYPES[r.type]} → ${r.blame}`).join(' · ')}</p></div></div>`;
+  const r = rankShared(dg.W).slice(0, 5);
+  h += `<div class="step"><b>2</b><div><h3>여러 개념이 같이 기대는 선행 개념</h3>${r.length ? `<div style="display:grid;gap:6px">${r.map(c => `<div class="cand"><button class="chip a" data-id="${c.id}"><span class="n">${c.id}</span>${esc(short(c.id))}</button><div class="bar" role="img" aria-label="${dg.W.length}개 중 ${c.cov}개가 공유"><i style="width:${c.cov / dg.W.length * 100}%"></i></div></div>`).join('')}</div>
+    <p class="note" style="margin-top:6px">막대 = 틀린 개념 ${dg.W.length}개 중 몇 개가 이 개념을 거쳐 가는지</p>` : '<p class="note">틀린 개념이 모두 출발점이라 거슬러 갈 선행 개념이 없어.</p>'}</div></div>`;
+  h += `<div class="step"><b>3</b><div><h3>확인 질문 · ${dg.asked.length}/${MAXQ}</h3>`;
+  if(dg.q != null && !dg.done){ const n = byId.get(dg.q);
+    h += `<div class="ask"><p><span class="ref">${n.id}</span> <b>${esc(n.title)}</b></p><p class="note">${esc(n.why)}</p><p>이 개념, 남한테 설명할 수 있어?</p>
+      <div class="row"><button class="btn" data-ans="know">설명할 수 있어</button><button class="btn ghost" data-ans="gap">헷갈려</button><button class="btn ghost" data-ans="skip">모르겠어, 넘어가</button></div></div>`;
+  } else h += `<p class="note">${dg.asked.length ? '질문 끝.' : '물어볼 선행 개념이 없어.'}</p>`;
+  if(dg.asked.length) h += `<p class="note" style="margin-top:6px">${dg.asked.map(a => `${a.id} ${a.ans === 'know' ? '✓' : a.ans === 'gap' ? '✗' : '–'}`).join(' · ')}</p>`;
+  if(!dg.done && dg.asked.length) h += `<div class="row" style="margin-top:6px"><button class="btn ghost" id="dFin">여기까지로 결과 보기</button></div>`;
+  h += `</div></div>`;
+  if(dg.done){ const R = result();
+    h += `<div class="step"><b>4</b><div><h3>${R.direct ? '선행은 괜찮아. 틀린 개념 자체를 다시 봐' : '진짜 막힌 지점'}</h3>${chips(R.roots, 'x')}
+      <h3 style="margin-top:10px">복습 순서 · ${R.order.length}단계</h3>${(() => { const li = i => { const n = byId.get(i); return `<li><button class="chip ${dg.W.includes(i) ? '' : 'a'}" data-id="${i}"><span class="n">${i}</span>${esc(short(i))}</button> <span class="meta">${'★'.repeat(n.stars)} · ${n.chapter}장${dg.W.includes(i) ? ' · 틀린 개념' : dg.gaps.has(i) ? ' · 헷갈림' : ''}</span></li>`; };
+        return `<ol class="review">${R.order.slice(0, 8).map(li).join('')}</ol>` + (R.order.length > 8 ? `<details class="more"><summary>나머지 ${R.order.length - 8}단계</summary><ol class="review" start="9">${R.order.slice(8).map(li).join('')}</ol></details>` : ''); })()}
+      <p class="note" style="margin-top:6px">개념을 눌러 카드를 위에서부터 읽고, 다 봤으면 이 개념들로 다시 풀어 봐.</p>
+      <div class="row" style="margin-top:8px"><button class="btn" id="dRetry">복습한 개념으로 다시 풀기</button></div></div></div>`;
+  }
+  h += `<div id="aiBox" hidden><div class="step"><b>AI</b><div><h3>AI 코치 (Claude가 온톨로지 도구를 직접 호출)</h3>
+    <p class="note">Claude에 로그인한 사람만 쓸 수 있어. 처음 누르면 허용할지 물어보고, 누른 사람의 Claude 사용량을 써.</p>
+    <div class="row" style="margin:8px 0"><button class="btn" id="aiRun">AI 코치에게 진단 설명 듣기</button><button class="btn ghost" id="aiStop" hidden>멈추기</button></div>
+    <div class="trace" id="aiTrace" hidden aria-label="도구 호출 기록"></div><div class="answer" id="aiOut"></div></div></div></div>`;
+  P.innerHTML = h + `</div>`;
+  $('#dBack').onclick = () => { dg = null; render(true); quizPanel(); };
+  P.querySelectorAll('[data-ans]').forEach(b => b.onclick = () => { answer(dg.q, b.dataset.ans); render(true); diagPanel(); });
+  const fin = $('#dFin'); if(fin) fin.onclick = () => { dg.done = true; dg.q = null; render(true); diagPanel(); };
+  const rt = $('#dRetry'); if(rt) rt.onclick = () => { newQuiz(qz.scope, result().order); render(true); quizPanel(); };
+  P.querySelectorAll('.chip[data-id]').forEach(b => b.onclick = () => select(+b.dataset.id));
+  $('#aiRun').onclick = runAI; $('#aiStop').onclick = () => aiCtl && aiCtl.abort();
+  sampleP.then(s => { const box = $('#aiBox'); if(box) box.hidden = !s; });
+}
+
+// ── 문제 지도: 범위는 진하게, 푼 문제의 개념은 ✓/✗ 테두리. 지금 문제의 답은 드러내지 않는다 ──
+function renderQuizMap(refit){
+  if(!qz) newQuiz('all');
+  const S = QUIZ_SCOPES[qz.scope] || QUIZ_SCOPES.all, Q = qz.data.questions;
+  const pool = new Set(qz.ids ? qz.ids : D.nodes.filter(n => !n.title.startsWith('[범위 밖]') && n.stars >= 2 && n.chapter >= S.from && n.chapter <= S.to && (!S.stars || n.stars >= S.stars)).map(n => n.id));
+  const res = new Map();
+  Q.forEach((q, i) => { const p = qz.picks[i]; if(p == null) return; res.set(q.blame, res.get(q.blame) === 'bad' || p !== q.answer ? 'bad' : 'ok'); });
+  for(const e of L.edges){ const on = pool.has(e.from) && pool.has(e.to); el('path', {d:pathD(e.pts), class:`edge${on ? '' : ' dim'}`, 'marker-end':'url(#mD)'}, scene); }
+  for(const n of D.nodes){ const p = L.pos[n.id], r = res.get(n.id);
+    const g = drawNode(n.id, p.x, p.y, p.w, p.h, 'qn ' + (r || '') + (pool.has(n.id) || r ? '' : ' dim'));
+    if(r){ const ts = g.querySelector('tspan'); ts.textContent = (r === 'ok' ? '✓ ' : '✗ ') + ts.textContent; } }
+  if(refit){ let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for(const id of pool){ const p = L.pos[id]; x0 = Math.min(x0, p.x - p.w/2); y0 = Math.min(y0, p.y - p.h/2); x1 = Math.max(x1, p.x + p.w/2); y1 = Math.max(y1, p.y + p.h/2); }
+    fit(isFinite(x0) ? {x:x0, y:y0, w:x1 - x0, h:y1 - y0} : {x:0, y:0, w:L.width, h:L.height}); }
+  $('#cap').textContent = `${qz.ids ? '복습한 개념' : S.label} · 진한 곳에서 문제가 나와 · ✓ 맞힘 ✗ 틀림`;
+}
+function renderDiag(refit){
+  if(!dg) return renderQuizMap(refit);
+  const ids = [...diagNodes()];
+  if(!ids.length || typeof dagre === 'undefined'){ $('#cap').textContent = '진단할 개념이 아직 없어.'; return; }
+  const set = new Set(ids), R = dg.done ? result() : null, onPath = R ? new Set(R.order) : null;
+  const g = new dagre.graphlib.Graph(); g.setGraph({rankdir:'TB', nodesep:12, ranksep:30, marginx:10, marginy:10}); g.setDefaultEdgeLabel(() => ({}));
+  for(const id of ids){ const p = L.pos[id]; g.setNode(String(id), {width:p.w + 26, height:p.h}); }
+  const es = D.edges.filter(e => set.has(e.from) && set.has(e.to));
+  for(const e of es) g.setEdge(String(e.from), String(e.to));
+  dagre.layout(g);
+  for(const e of es){ const hot = onPath && onPath.has(e.from) && onPath.has(e.to);
+    el('path', {d:pathD(g.edge(String(e.from), String(e.to)).points.map(p => [p.x, p.y])), class:`edge ${hot ? 'path' : 'anc'}`, 'marker-end':`url(#${hot ? 'mX' : 'mA'})`}, scene); }
+  const kc = closure(dg.known);
+  for(const id of ids){ const p = g.node(String(id));
+    const cls = dg.W.includes(id) ? 'wrong' : dg.gaps.has(id) ? 'gap' : (R && R.roots.includes(id)) ? 'gap' : kc.has(id) ? 'known' : id === dg.q ? 'sel' : '';
+    const node = drawNode(id, p.x, p.y, p.width, p.height, cls);
+    const mark = dg.W.includes(id) ? '✗ ' : dg.gaps.has(id) ? '? ' : kc.has(id) ? '✓ ' : '';
+    if(mark){ const ts = node.querySelector('tspan'); ts.textContent = mark + ts.textContent; } }
+  const gi = g.graph(); fit({x:0, y:0, w:gi.width, h:gi.height}, gi.height > gi.width * 1.4 ? 'width' : 'all');
+  $('#cap').textContent = dg.done ? '빨간 선 = 복습 경로 · ✗ 틀린 개념 · 굵은 테두리 = 막힌 지점' : '✗ 틀린 개념 · ✓ 설명 가능 · ? 헷갈림 · 굵은 테두리 = 지금 묻는 개념';
+}
+
+// ── 개념 카드 ──
+function chips(list, cls){ return `<div class="chips">${list.map(id => `<button class="chip ${cls}" data-id="${id}"><span class="n">${id}</span>${short(id)}</button>`).join('')}</div>`; }
+function panel(){
+  if(view === 'diag') return diagPanel();
+  const n = byId.get(sel), c = chap.get(n.chapter), A = [...ancestors(sel)];
+  const lv = new Map(); for(const a of A){ const d = depth(a); if(!lv.has(d)) lv.set(d, []); lv.get(d).push(a); }
+  const levels = [...lv.keys()].sort((a,b)=>a-b);
+  const desc = descendants(sel).size;
+  $('#panel').innerHTML = `
+    <div class="kick"><span>${c.id}장 ${c.title}</span><span class="stars" aria-label="중요도 ${n.stars}">${'★'.repeat(n.stars)}${'☆'.repeat(5-n.stars)}</span><span>${LABEL[n.stars]}</span>${n.root?'<span>· 뿌리 개념</span>':''}</div>
+    <h2><span class="num">${n.id}</span>${esc(n.title)}</h2>
+    <dl><div><dt>왜 생겼나</dt><dd>${esc(n.why)}</dd></div><div><dt>핵심</dt><dd>${esc(n.core)}</dd></div>${n.calc?`<div><dt>계산 이유</dt><dd>${esc(n.calc)}</dd></div>`:''}</dl>
+    <div class="exam"><h3>출제</h3>${n.exam.prob!=null?`<div class="bar" role="img" aria-label="출제 확률 ${n.exam.prob}%"><i style="width:${n.exam.prob}%"></i></div><div class="row"><span class="tag">확률 ${n.exam.prob}% (추정)</span>${n.exam.types.map(t=>`<span class="tag">${TYPES[t]}</span>`).join('')}</div>`:`<p class="note">${n.exam.raw}</p>`}
+      ${n.exam.refs.length?`<div class="ref">근거 ${n.exam.refs.join(' · ')}</div>`:''}</div>
+    <div><h3>바로 앞 개념 · ${n.prereq.length}</h3>${n.prereq.length?chips(n.prereq,'a'):'<p class="note">출발점이야. 선행 개념이 없어.</p>'}</div>
+    <div><h3>바로 열리는 개념 · ${n.next.length}</h3>${n.next.length?chips(n.next,'x'):'<p class="note">가지 끝이야.</p>'}</div>
+    <div><h3>여기까지 오는 길 · 선행 ${A.length}개</h3><p class="note">${n.id}번을 이해하려면 아래를 위에서부터 알아야 해. 뒤로 열리는 개념은 모두 ${desc}개.</p>
+      <div class="path">${levels.map(d=>`<div class="lvl"><span>L${d}</span>${chips(lv.get(d).sort((a,b)=>a-b),'a')}</div>`).join('') || '<p class="note">없음</p>'}</div></div>`;
+  $('#panel').querySelectorAll('.chip').forEach(b => b.onclick = () => select(+b.dataset.id));
+}
+
+function select(id){ if(!byId.has(id)) return; sel = id; if(view === 'diag'){ view = 'line'; syncSeg(); } try{ history.replaceState(null,'','#c'+id); }catch(e){ location.hash = 'c'+id; } render(view === 'line'); panel(); }
+function syncSeg(){ $('.main').classList.toggle('qmode', view==='diag'); $('#vLine').setAttribute('aria-pressed', view==='line'); $('#vMap').setAttribute('aria-pressed', view==='map'); $('#vDiag').setAttribute('aria-pressed', view==='diag'); }
+function setView(v){ view = v; syncSeg(); try{ history.replaceState(null,'', v==='diag' ? '#quiz' : '#c'+sel); }catch(e){} render(true); panel(); }
+$('#vLine').onclick = () => setView('line'); $('#vMap').onclick = () => setView('map'); $('#vDiag').onclick = () => setView('diag');
+
+// ── 검색 ──
+const q = $('#q'), sugg = $('#sugg');
+q.addEventListener('input', () => {
+  const s = q.value.trim(); if(!s){ sugg.hidden = true; return; }
+  const num = /^\d+$/.test(s) ? +s : null;
+  const hits = D.nodes.filter(n => n.id === num || n.title.includes(s) || n.core.includes(s)).sort((a,b)=>(b.title.includes(s)) - (a.title.includes(s)) || b.stars - a.stars).slice(0,8);
+  sugg.innerHTML = hits.map(n => `<li><button data-id="${n.id}"><span class="ref">${n.id}</span>${n.title}</button></li>`).join('') || '<li class="note" style="padding:6px 8px">찾는 개념이 없어. 다른 낱말로 검색해 봐.</li>';
+  sugg.hidden = false; sugg.querySelectorAll('button').forEach(b => b.onclick = () => { select(+b.dataset.id); q.value=''; sugg.hidden = true; });
+});
+q.addEventListener('keydown', e => { if(e.key === 'Enter'){ const b = sugg.querySelector('button'); if(b) b.click(); } if(e.key === 'Escape') sugg.hidden = true; });
+document.addEventListener('click', e => { if(!e.target.closest('.search')) sugg.hidden = true; });
+
+window.addEventListener('resize', () => render(true));
+window.addEventListener('hashchange', () => { const m = location.hash.match(/^#c(\d+)$/); if(m && +m[1] !== sel) select(+m[1]); });
+const m0 = location.hash.match(/^#c(\d+)$/); if(m0 && byId.has(+m0[1])) sel = +m0[1];
+if(location.hash === '#quiz' || location.hash === '#diag'){ view = 'diag'; syncSeg();
+  if(matchMedia('(max-width:900px)').matches) requestAnimationFrame(() => $('.tools').scrollIntoView({block:'start'})); }
+render(true); panel();
+</script>
