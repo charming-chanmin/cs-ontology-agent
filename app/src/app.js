@@ -86,10 +86,18 @@ function parseHash(){
   return {subj, view, arg:p[2] ? decodeURIComponent(p[2]) : null};
 }
 function go(h){ if(location.hash === h) render(); else location.hash = h; }
-window.addEventListener('hashchange', () => { route = parseHash(); render(); });
+// 다른 화면(또는 다른 강의)으로 가면 맨 위부터 보여 준다. 지도에서 개념만 바꿀 때는 보던 자리 그대로.
+window.addEventListener('hashchange', () => {
+  const prev = route; route = parseHash();
+  const lecMove = route.view === 'lec' && prev.arg !== route.arg && !String(route.arg || '').includes('-');
+  if(prev.subj !== route.subj || prev.view !== route.view || lecMove) window.scrollTo(0, 0);
+  render();
+});
 
 // ── 공용 조각 ──
 const ST = k => COPY.status[k];
+const TERM = COPY.term;                                                       // 기초 개념 · 원인 찾기 · 🔍
+const PJ = (a, b) => TERM.pre + josa(TERM.pre, a, b);                         // "기초 개념" + 조사
 const cname = (key, id) => { const c = S(key).ix.byId.get(id); return c ? c.title : String(id); };
 const cshort = (key, id) => { const c = S(key).ix.byId.get(id); return c ? (c.short || c.title) : String(id); };
 const q_ = (key, id) => `「${esc(cshort(key, id))}」`;                       // 문장 속 개념 이름
@@ -103,6 +111,7 @@ const pillOf = (st, id) => pill(statusOf(st, id), progress(st, id));
 const helpBtn = key => COPY.help[key] ? `<button type="button" class="ap-help" data-help="${key}" aria-label="${esc(COPY.help[key].title)}" aria-expanded="false">?</button>` : '';
 const cardHead = (title, helpKey, sub) => `<div class="ap-ch3">${helpKey ? helpBtn(helpKey) : ''}<span>${title}</span></div>${sub ? `<p class="ap-sub">${sub}</p>` : ''}`;
 const cchip = (key, st, id) => { const k = statusOf(st, id); return `<a class="ap-chip" href="#/${key}/map/${id}" title="${esc(ST(k).label + progress(st, id) + ': ' + ST(k).rule())}">${ic(k)}<span>${esc(cshort(key, id))}</span><span class="ap-hidden">(${ST(k).label})</span></a>`; };
+const nchip = (key, id) => `<a class="ap-chip" href="#/${key}/map/${id}"><span>${esc(cshort(key, id))}</span></a>`;   // 이름만 (상태는 옆에 따로 보일 때)
 const chips = (key, st, ids) => `<span class="ap-chips">${ids.map(id => cchip(key, st, id)).join('')}</span>`;
 // 정복 실패 개념의 역할: 출발점(선행에 실패 없음) / 막힘(선행에 실패 있음)
 function roleOf(key, st, id){ if(statusOf(st, id) !== 'unknown') return null; return unknownPre(S(key).ix, st, id).length ? 'blocked' : 'start'; }
@@ -183,7 +192,7 @@ function startSession(key, mode, arg){
   else if(mode === 'lesson'){ const L = data.lessons.find(l => String(l.num) === String(arg)); const sids = new Set(L ? L.scenes : []); pool = poolOf(key, q => sids.has(q.scene)); title = `${arg}강 문제`; max = Math.min(10, pool.length); }
   else if(mode === 'scene'){ pool = poolOf(key, q => q.scene === arg); title = `장면 ${arg} 문제`; max = pool.length; queue = pool.slice(); }
   else if(mode === 'concept'){ focus = +arg; pool = poolOf(key, q => q.concepts.includes(focus)); title = `「${cshort(key, focus)}」 정복하기`; max = RULES.need + 1; }
-  else if(mode === 'pre'){ focus = +arg; pool = poolOf(key); title = `「${cshort(key, focus)}」의 선행 확인`; max = 0; }
+  else if(mode === 'pre'){ focus = +arg; pool = poolOf(key); title = `「${cshort(key, focus)}」 ${TERM.probe}`; max = 0; }
   else { pool = poolOf(key); title = COPY.modes.smart.title; }
   SES = {key, mode, title, pool, queue, max, focus, used:new Set(), n:0, results:[], changes:[], probe:null, probeQ:0, probes:[], cur:null, phase:'q', note:null};
   if(mode === 'pre'){ SES.probe = startProbe(focus, {manual:true}); SES.note = null; }
@@ -194,7 +203,9 @@ function startSession(key, mode, arg){
 // 확인 문제 고르기: 그 개념을 최근에 푼 모양이면 개념 지도 문제로라도 다른 모양을 낸다
 function checkQuestion(key, cid){
   const st = store.load(key), {ix, data} = S(key);
-  let qid = checkQuizFor(ix, st, cid, poolOf(key, q => q.concepts.includes(cid)), SES.used, now());
+  const from = SES.probe ? SES.probe.from : null, pick = f => checkQuizFor(ix, st, cid, poolOf(key, q => q.concepts.includes(cid) && f(q)), SES.used, now());
+  // 다른 개념의 원인을 찾는 중이면, 틀린 그 개념이 섞이지 않은 문제를 먼저 고른다 ("따로 아는지" 보려고)
+  let qid = (from != null && from !== cid ? pick(q => !q.concepts.includes(from)) : null) || pick(() => true);
   // 최근에 본 모양뿐이면 개념 지도 문제(def → core 순)로 바꾼다. 그것도 다 최근이면 원래 고른 걸 낸다.
   if(!qid || isRecentShape(st, cid, data.quizzes[qid])){
     for(const type of GEN_TYPES){
@@ -266,6 +277,7 @@ function submitAnswer(correct, extra = {}){
   }
   store.save(key);
   render();
+  showFeedback();
   // 처음 한 번만: 상태 변화·원인 찾기 설명을 저절로 띄운다
   const v = $('#view');
   if(SES.note && SES.note.kind === 'probe-start') GUIDE.tipOnce('probe', v); else GUIDE.tipOnce('feedback', v);
@@ -273,8 +285,14 @@ function submitAnswer(correct, extra = {}){
 
 // ── 화면: 문제 ──
 function ruleBox(){
-  const N = RULES.need;
-  return `<div class="ap-rule">${helpBtn('status')}<span><b>정복 규칙</b> · ${ic('none')} ${ST('none').label}에서 시작해서, 맞히면 ${ic('half')} ${ST('half').label}, <b>${N}번 연속</b> 맞히면 ${ic('know')} ${ST('know').label}. 틀리면 ${ic('unknown')} ${SL('unknown', '이', '가')} 되고, 그 개념의 선행 개념을 확인 문제로 물어서 어디서부터 막혔는지(출발점) 찾아요.</span></div>`;
+  return `<div class="ap-rule">${helpBtn('status')}<span>${ic('none')} 처음 → 맞히면 ${ic('half')} ${ST('half').label} → <b>${RULES.need}번 연속</b>이면 ${ic('know')} ${ST('know').label}. 틀리면 ${ic('unknown')} ${SL('unknown', '이', '가')} 되고 ${TERM.icon} ${TERM.probe}가 시작돼요.</span></div>`;
+}
+// 문제 출처: 교재·기출처럼 학생에게 뜻 있는 것만 보여 준다 (생성기 이름은 숨김)
+function srcLabel(q){
+  const s = String(q.src || '');
+  if(/자동 출제 · /.test(s)) return s.split(' · ').pop();
+  if(!s || /규격|자동 생성|AI가/.test(s)) return '';
+  return s;
 }
 function renderQuiz(){
   const key = route.subj, st = store.load(key), {data, ix} = S(key);
@@ -284,8 +302,8 @@ function renderQuiz(){
     return `<div class="ap-narrow"><h2 class="ap-h2">${COPY.titles.quizHome}</h2>${ruleBox()}
       <div class="ap-ch3" style="margin-top:14px">${helpBtn('modes')}<span>무엇을 풀까요?</span></div>
       <div class="ap-modes" data-tour="modes">
-        <button class="ap-mode" data-start="smart"><b>${M.smart.title}</b><span>${M.smart.desc}</span></button>
-        <button class="ap-mode" data-start="diag"><b>${M.diag.title}</b><span>${tried ? M.diag.desc : M.diag.first}</span></button>
+        <button class="ap-mode${tried ? ' rec' : ''}" data-start="smart"><b>${M.smart.title}${tried ? ' <em>추천</em>' : ''}</b><span>${M.smart.desc}</span></button>
+        <button class="ap-mode${tried ? '' : ' rec'}" data-start="diag"><b>${M.diag.title}${tried ? '' : ' <em>처음이면</em>'}</b><span>${tried ? M.diag.desc : M.diag.first}</span></button>
         <button class="ap-mode" data-start="redo" ${redo ? '' : 'disabled'}><b>${M.redo.title} · ${redo}개</b><span>${M.redo.desc}</span></button>
         <button class="ap-mode" data-start="review" ${r.due.length ? '' : 'disabled'}><b>${COPY.due.icon} ${M.review.title} · ${r.due.length}개</b><span>${M.review.desc}</span></button>
       </div>
@@ -295,15 +313,16 @@ function renderQuiz(){
   const q = data.quizzes[SES.cur.qid], chk = SES.cur.check != null, fb = SES.phase === 'fb';
   const total = SES.max, shown = Math.min(SES.n, total), nChk = SES.results.filter(x => x.check != null).length;
   let h = `<div class="ap-narrow"><div class="ap-row" style="justify-content:space-between"><h2 class="ap-h2">${esc(SES.title)}</h2><button class="ap-btn sm" id="quit">그만 풀기</button></div>`;
-  if(total) h += `<div class="ap-prog"><span>${shown}/${total}</span><div class="ap-bar" role="img" aria-label="${total}문제 중 ${shown}번째"><i style="width:${shown / total * 100}%"></i></div><span>맞힘 ${SES.results.filter(x => x.ok).length}/${SES.results.length}${nChk ? ` · 확인 ${nChk}` : ''}</span></div>`;
+  if(total) h += `<div class="ap-prog"><span>${shown}/${total}</span><div class="ap-bar" role="img" aria-label="${total}문제 중 ${shown}번째"><i style="width:${shown / total * 100}%"></i></div><span>맞힘 ${SES.results.filter(x => x.ok).length}/${SES.results.length}${nChk ? ` · ${TERM.icon} ${nChk}` : ''}</span></div>`;
   h += `<article class="ap-q${chk ? ' check' : ''}">`;
   if(chk) h += `<div class="ap-why">${helpBtn('check')}<span>${SES.cur.why || checkWhy(key)}</span></div>`;
-  h += `<div class="ap-row ap-small" style="margin-bottom:6px"><span class="ap-badge">${q.kind === 'mcq' ? '객관식' : q.kind === 'calc' ? '계산' : '주관식'}</span><span class="ap-badge">${esc(q.src || '')}</span>${q.ai ? '<span class="ap-badge ai">AI 생성</span>' : ''}${chk ? '<span class="ap-badge chk">확인 문제</span>' : ''}</div>`;
-  h += `<div class="ap-qc">${helpBtn('qc')}<span>${COPY.titles.qc}</span>${q.concepts.filter(c => ix.live(c)).map(c => cchip(key, st, c)).join('')}</div>`;
+  const src = srcLabel(q), live = q.concepts.filter(c => ix.live(c));
+  h += `<div class="ap-qmeta"><span class="ap-badge">${q.kind === 'mcq' ? '객관식' : q.kind === 'calc' ? '계산' : '주관식'}</span>${src ? `<span class="ap-badge">${esc(src)}</span>` : ''}${q.ai ? '<span class="ap-badge ai">AI 생성</span>' : ''}<span class="ap-qc">${helpBtn('qc')}<span>${COPY.titles.qc}</span>${live.map(c => cchip(key, st, c)).join('')}</span></div>`;
   h += `<div class="lec">${q.stem}</div>`;
   if(q.kind === 'mcq'){
     h += `<div class="ap-opts" role="group" aria-label="보기">${q.options.map((o, i) => { const cls = !fb ? '' : q.answer.includes(i + 1) ? ' ok' : SES.choice === i ? ' bad' : ' off';
       return `<button class="ap-opt${cls}" data-opt="${i}"${fb ? ' aria-disabled="true"' : ''}><b>${CIRC[i]}</b><span class="lec">${o}</span></button>`; }).join('')}</div>`;
+    if(!fb) h += `<p class="ap-kbd">키보드: 1~4로 고르기 · Enter로 다음</p>`;
   } else if(!fb){
     h += `<label class="ap-small ap-muted" for="ans">${q.kind === 'calc' ? '답 (풀이도 같이 적으면 AI가 어디서 틀렸는지 짚어 줘요)' : '답'}</label><textarea class="ap-ta" id="ans" placeholder="${esc(q.input ? '답: ' + q.input : '답을 적어 주세요')}">${esc(SES.text || '')}</textarea>
       <div class="ap-row" style="margin-top:8px"><button class="ap-btn pri" id="submit">채점하기</button><button class="ap-btn" id="reveal">모르겠어요, 답 보기</button></div>`;
@@ -315,12 +334,12 @@ function renderQuiz(){
   return h;
 }
 function checkWhy(key){
-  const id = SES.cur.check, p = SES.probe;
-  if(SES.cur.kind === 'again') return `<b>확인 문제</b> · ${qj(key, id, '을', '를')} 다른 문제로 한 번 더 볼게요. 아까 틀린 게 실수였는지, 정말 모르는지 확인하는 거예요.`;
+  const id = SES.cur.check, p = SES.probe, head = `<b>${TERM.icon} ${TERM.probe} 문제</b> · `, tail = '<br><span class="ap-small ap-muted">맞히면 여기는 원인이 아니고, 틀리면 한 칸 더 기초로 내려가요.</span>';
+  if(SES.cur.kind === 'again') return head + `아까 틀린 ${qj(key, id, '을', '를')} 다른 문제로 한 번 더 볼게요. 실수였는지, 정말 모르는지 가려요.`;
   const below = p ? p.stack[p.stack.length - 1] : null;
-  if(p && p.also.includes(id) && below === p.from) return `<b>확인 문제</b> · 아까 문제는 ${q_(key, p.from)}${josa(cshort(key, p.from), '과', '와')} ${qj(key, id, '을', '를')} 같이 물었어요. ${qj(key, id, '을', '를')} 따로 아는지 볼게요.`;
-  if(below != null && below !== id) return `<b>확인 문제</b> · ${qj(key, below, '을', '를')} 이해하려면 먼저 ${qj(key, id, '을', '를')} 알아야 해요(선행 개념). ${qj(key, id, '을', '를')} 아는지 볼게요.`;
-  return `<b>확인 문제</b> · ${qj(key, id, '을', '를')} 아는지 볼게요.`;
+  if(p && p.also.includes(id) && below === p.from) return head + `아까 문제는 ${q_(key, p.from)}${josa(cshort(key, p.from), '과', '와')} ${qj(key, id, '을', '를')} 같이 물었어요. ${qj(key, id, '을', '를')} 아는지 볼게요.` + tail;
+  if(below != null && below !== id) return head + `${qj(key, below, '을', '를')} 이해하려면 먼저 ${qj(key, id, '을', '를')} 알아야 해요(${TERM.pre}). ${qj(key, id, '을', '를')} 아는지 볼게요.` + tail;
+  return head + `${qj(key, id, '을', '를')} 아는지 볼게요.` + tail;
 }
 function selfGradeBox(q){
   return `<div class="ap-fb"><h4>모범답안</h4><div class="lec"><p><b>${q.answer_html}</b></p>${q.extra || ''}</div>
@@ -338,21 +357,30 @@ function transHtml(key, st, ch, q){
   const rows = ch.map(c => { const same = c.before === c.after && c.after !== 'half';
     const after = pill(c.after, c.after === 'half' ? ` ${Math.min(c.streak, RULES.need)}/${RULES.need}` : '');
     const win = c.after === 'know' && c.before !== 'know' ? '<span class="ap-win" aria-label="정복">🚩 정복!</span>' : '';
-    return `<li>${cchip(key, st, c.id)}${same ? after : `${pill(c.before)}<span class="ap-muted" aria-label="에서">→</span>${after}`}${win}<span class="hint">${transHint(st, c)}</span></li>`; });
+    return `<li>${nchip(key, c.id)}${same ? after : `${pill(c.before)}<span class="ap-muted" aria-label="에서">→</span>${after}`}${win}<span class="hint">${transHint(st, c)}</span></li>`; });
   const skipped = q.concepts.filter(c => S(key).ix.live(c) && !ch.some(x => x.id === c));
   if(skipped.length) rows.push(`<li class="hint">${skipped.map(c => q_(key, c)).join(', ')}${josa(cshort(key, skipped[skipped.length - 1]), '은', '는')} 같이 묻는 문제였지만, 틀린 원인이 어느 쪽인지 몰라서 상태를 그대로 뒀어요.</li>`);
   return `<div class="ap-ch3" style="margin-top:10px">${helpBtn('change')}<span>${COPY.titles.change}</span></div><ul class="ap-trans">${rows.join('')}</ul>`;
 }
+// "옳지 않은 것은?" 같은 문제에서 보기 해설이 "맞아."로 시작하면, 내 답이 맞았다는 말로 읽힌다.
+// 보기 문장이 맞는 내용인지·틀린 내용인지로 바꿔 말한다.
+const NEG_Q = /않은|아닌|틀린|옳지|거리가 먼|관계없는|해당하지/;
+function explOf(q, n){
+  const e = q.expl[String(n)] || '';
+  if(!NEG_Q.test(q.question_text || '')) return e;
+  if(q.answer.includes(n)) return e.replace(/^(틀렸어요|틀렸어|틀린 설명(이에요|이야)?|틀림)[.!]?\s*/, '틀린 내용이라 정답이에요. ');
+  return e.replace(/^(맞는 설명(이에요|이야|이다)?|맞아요|맞아|맞음|옳은 설명(이에요|이야)?|옳아요|옳아)[.!]?\s*/, '맞는 내용이라 답이 아니에요. ').trim();
+}
 function feedbackHtml(key, st, q){
   const ok = SES.correct;
-  let h = `<div class="ap-fb ${ok ? 'ok' : 'bad'}" role="status"><h4>${ok ? '✓ 맞았어요' : '✗ 틀렸어요'}${q.kind === 'mcq' ? ` · 정답 ${q.answer.map(n => CIRC[n - 1]).join(', ')}` : ''}</h4>`;
+  let h = `<div class="ap-fb ${ok ? 'ok' : 'bad'}" role="status" id="fb"><h4>${ok ? '✓ 맞았어요' : '✗ 틀렸어요'}${q.kind === 'mcq' ? ` · 정답 ${q.answer.map(n => CIRC[n - 1]).join(', ')}` : ''}</h4>`;
   if(q.kind === 'mcq'){
-    if(!ok && SES.choice != null && q.expl[String(SES.choice + 1)]) h += `<div class="lec"><p><b>고른 ${CIRC[SES.choice]}:</b> ${q.expl[String(SES.choice + 1)]}</p></div>`;
-    const right = q.answer.map(n => q.expl[String(n)] ? `<p><b>${CIRC[n - 1]}:</b> ${q.expl[String(n)]}</p>` : '').join('');
+    if(!ok && SES.choice != null && q.expl[String(SES.choice + 1)]) h += `<div class="lec"><p><b>내가 고른 ${CIRC[SES.choice]}:</b> ${explOf(q, SES.choice + 1)}</p></div>`;
+    const right = q.answer.map(n => q.expl[String(n)] ? `<p><b>정답 ${CIRC[n - 1]}:</b> ${explOf(q, n)}</p>` : '').join('');
     if(right) h += `<div class="lec">${right}</div>`;
     if(q.tail) h += `<div class="lec"><p>${q.tail}</p></div>`;
     const rest = q.options.map((_, i) => i + 1).filter(n => !q.answer.includes(n) && n - 1 !== SES.choice && q.expl[String(n)]);
-    if(rest.length || q.extra) h += `<details${q.tid && String(q.tid).startsWith('calc') ? ' open' : ''}><summary class="ap-small">${rest.length ? '나머지 보기 해설' : ''}${rest.length && q.extra ? ' · ' : ''}${q.extra ? '풀이' : ''}</summary><div class="lec">${rest.map(n => `<p><b>${CIRC[n - 1]}:</b> ${q.expl[String(n)]}</p>`).join('')}${q.extra || ''}</div></details>`;
+    if(rest.length || q.extra) h += `<details${q.tid && String(q.tid).startsWith('calc') ? ' open' : ''}><summary class="ap-small">${rest.length ? '나머지 보기 해설' : ''}${rest.length && q.extra ? ' · ' : ''}${q.extra ? '풀이' : ''}</summary><div class="lec">${rest.map(n => `<p><b>${CIRC[n - 1]}:</b> ${explOf(q, n)}</p>`).join('')}${q.extra || ''}</div></details>`;
   } else {
     if(SES.aiGrade) h += `<p class="ap-small"><b>AI 채점 ${SES.aiGrade.score}/10</b> · ${esc(SES.aiGrade.feedback || '')}${SES.aiGrade.missing && SES.aiGrade.missing.length ? `<br>빠진 것: ${SES.aiGrade.missing.map(esc).join(', ')}` : ''}</p>`;
     if(SES.text) h += `<p class="ap-small ap-muted">내 답: ${esc(SES.text)}</p>`;
@@ -362,13 +390,14 @@ function feedbackHtml(key, st, q){
   h += transHtml(key, st, SES.lastChanges, q);
   h += `</div>`;
   h += noteHtml(key, st);
-  const sid = q.scene || sceneOf(key, q.concepts[0]);
-  h += `<div class="ap-row" style="margin-top:12px"><button class="ap-btn pri" id="next">${nextLabel()}</button>${sid ? `<a class="ap-btn" href="${sceneLink(key, sid)}">강의로 보기</a>` : ''}${AI.ok ? '<button class="ap-btn" id="askAI">AI에게 물어보기</button>' : ''}</div>`;
   if(SES.ai) h += aiBoxHtml();
+  const sid = q.scene || sceneOf(key, q.concepts[0]);
+  // 다음 버튼은 화면 아래에 붙어 있어서 해설을 끝까지 안 내려도 누를 수 있다
+  h += `<div class="ap-actbar"><button class="ap-btn pri" id="next">${nextLabel()}</button>${sid ? `<a class="ap-btn" href="${sceneLink(key, sid)}">강의로 보기</a>` : ''}${AI.ok && !SES.ai ? '<button class="ap-btn" id="askAI">AI에게 물어보기</button>' : ''}</div>`;
   return h;
 }
 function nextLabel(){
-  if(SES.probe && !SES.probe.done) return '확인 문제 풀기 →';
+  if(SES.probe && !SES.probe.done) return `${TERM.icon} ${TERM.probe} 문제 풀기 →`;
   const st = store.load(SES.key);
   if(SES.mode === 'concept' && ['know', 'unknown'].includes(statusOf(st, SES.focus))) return '결과 보기';
   return SES.n >= SES.max ? '결과 보기' : '다음 문제 →';
@@ -376,19 +405,21 @@ function nextLabel(){
 const probeHead = title => `<div class="ap-ch3">${helpBtn('probe')}<span>${title}</span></div>`;
 function noteHtml(key, st){
   const n = SES.note; if(!n) return '';
-  const {ix} = S(key), U = ST('unknown').label;
-  if(n.kind === 'capped') return `<div class="ap-probe">${probeHead('원인 찾기는 이번 판에 3번 했어요')}<p>${qj(key, n.id, '은', '는')} ${SL('unknown', '으로', '로')} 표시해 뒀어요. 길잡이 화면에서 이어서 확인할 수 있어요.</p></div>`;
+  const {ix} = S(key), U = ST('unknown').label, P = TERM.pre;
+  if(n.kind === 'capped') return `<div class="ap-probe">${probeHead(`${TERM.icon} ${TERM.probe}는 이번 판에 3번 했어요`)}<p>${qj(key, n.id, '은', '는')} ${SL('unknown', '으로', '로')} 표시해 뒀어요. 길잡이 화면에서 이어서 볼 수 있어요.</p></div>`;
   if(n.kind === 'known'){
-    if(n.blockers.length) return `<div class="ap-probe">${probeHead(`${qj(key, n.id, '은', '는')} 막혀 있어요`)}<p>먼저 알아야 할 개념 ${n.blockers.map(b => q_(key, b)).join(', ')}${josa(cshort(key, n.blockers[n.blockers.length - 1]), '이', '가')} 아직 ${U}${yo(U)}. 그쪽부터 정복하면 이 개념도 풀려요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, n.blockers[0], '선행 강의 보기')}</div></div>`;
-    return `<div class="ap-probe">${probeHead(`${qj(key, n.id, '은', '는')} ${n.twice ? '2번 연속 틀렸어요' : `아직 ${U}${yo(U)}`}`)}<p>먼저 알아야 할 개념은 더 확인할 게 없어요. 이 개념을 강의로 다시 보고 도전해 보세요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, n.id)}</div></div>`;
+    if(n.blockers.length) return `<div class="ap-probe">${probeHead(`${qj(key, n.id, '은', '는')} 기초가 비어 있어요`)}<p>먼저 알아야 할 ${n.blockers.map(b => q_(key, b)).join(', ')}${josa(cshort(key, n.blockers[n.blockers.length - 1]), '이', '가')} 아직 ${U}${yo(U)}. 그쪽부터 정복하면 이 개념도 풀려요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, n.blockers[0], '기초 강의 보기')}</div></div>`;
+    return `<div class="ap-probe">${probeHead(`${qj(key, n.id, '은', '는')} ${n.twice ? '2번 연속 틀렸어요' : `아직 ${U}${yo(U)}`}`)}<p>${PJ('은', '는')} 괜찮아요. 이 개념을 강의로 다시 보고 도전해 보세요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, n.id)}</div></div>`;
   }
   if(n.kind === 'probe-start'){
-    const pre = ix.byId.get(n.id).prereq.filter(ix.live);
-    let p = `<div class="ap-probe">${probeHead('원인 찾기를 시작할게요')}<p>${qj(key, n.id, '이', '가')} ${pill('unknown')}${josa(U, '이', '가')} 됐어요. `;
-    if(n.already.length) p += `먼저 알아야 할 ${q_(key, n.already[0])}${josa(cshort(key, n.already[0]), '이', '가')} 이미 ${U}${josa(U, '이라서', '라서')}, 그 때문에 막혔을 가능성이 커요. ${n.first != null ? '그 아래도 확인해 볼게요.' : ''}`;
+    const pre = ix.byId.get(n.id).prereq.filter(ix.live), names = xs => xs.map(x => q_(key, x)).join(', ');
+    let p = `<div class="ap-probe">${probeHead(`${TERM.icon} ${TERM.probe}를 시작할게요`)}<p>${qj(key, n.id, '이', '가')} ${pill('unknown')}${josa(U, '이', '가')} 됐어요. `;
+    if(n.already.length) p += `${P} ${q_(key, n.already[0])}${josa(cshort(key, n.already[0]), '이', '가')} 이미 ${U}${josa(U, '이라서', '라서')}, 그 때문일 가능성이 커요.${n.first != null ? ' 그 아래도 짧게 물어볼게요.' : ''}`;
     else if(n.first == null) p += '';
-    else if(n.firstKind === 'again') p += `${pre.length ? `먼저 알아야 할 ${pre.map(x => q_(key, x)).join(', ')}${josa(cshort(key, pre[pre.length - 1]), '은', '는')} 이미 괜찮아요. ` : '이 개념은 먼저 알아야 할 개념이 없는 출발 개념이에요. '}다른 문제로 한 번 더 확인할게요.`;
-    else p += `${pre.length ? `이 개념은 ${pre.map(x => q_(key, x)).join(', ')} 위에 서 있어요(선행 개념). ` : ''}${n.also.length ? '같이 묻던 개념과 ' : ''}아직 확인 안 된 선행 개념을 하나씩 물어서, 어디서부터 모르는지 찾을게요.`;
+    else if(n.firstKind === 'again') p += pre.length ? `${P} ${names(pre)}${josa(cshort(key, pre[pre.length - 1]), '은', '는')} 괜찮아요. 다른 문제로 한 번 더 볼게요.` : `${qj(key, n.id, '은', '는')} ${PJ('이', '가')} 없는 첫 개념이에요. 다른 문제로 한 번 더 볼게요.`;
+    else { const last = pre.length ? cshort(key, pre[pre.length - 1]) : '';
+      const what = pre.length ? `${P} ${names(pre)}${n.also.length ? `${josa(last, '과', '와')} 같이 묻던 개념을` : josa(last, '을', '를')}` : '같이 묻던 개념을';
+      p += `틀린 이유가 기초에 있는지 보려고, ${what} 짧은 문제로 하나씩 물어볼게요. 답만 고르면 돼요.`; }
     p += '</p>';
     if(n.after) p += probeDoneText(key, st, n.after);
     return p + '</div>';
@@ -396,9 +427,9 @@ function noteHtml(key, st){
   if(n.kind === 'check'){
     const name = q_(key, n.id), J = josa(cshort(key, n.id), '은', '는');
     let t;
-    if(n.ck === 'again') t = n.v === 'ok' ? `다시 맞혔어요. 아까는 실수였던 것 같아요. ${name}${J} 이제 ${pill('half')}${yo(ST('half').label)}.` : `또 틀렸어요. ${name}${J} ${pill('unknown')}${josa(U, '이', '가')} 맞아요.`;
-    else t = n.v === 'ok' ? `${name} 맞혔어요 → ${pill('half')}. 여기는 원인이 아닌 것 같아요.` : `${name}도 틀렸어요 → ${pill('unknown')}. 이 개념의 선행 개념으로 한 칸 더 내려가 볼게요.`;
-    let h = `<div class="ap-probe">${probeHead('확인 결과')}<p>${t}</p>`;
+    if(n.ck === 'again') t = n.v === 'ok' ? `다시 맞혔어요. 아까는 실수였나 봐요. ${name}${J} 이제 ${pill('half')}${yo(ST('half').label)}.` : `또 틀렸어요. ${name}${J} ${pill('unknown')}${josa(U, '이', '가')} 맞아요.`;
+    else t = n.v === 'ok' ? `${name} 맞혔어요 → ${pill('half')}. 여기는 원인이 아니에요.` : `${name}도 틀렸어요 → ${pill('unknown')}. ${qj(key, n.id, '의', '의')} 기초로 한 칸 더 내려가 볼게요.`;
+    let h = `<div class="ap-probe">${probeHead(`${TERM.icon} ${TERM.probe} 결과`)}<p>${t}</p>`;
     if(n.after) h += probeDoneText(key, st, n.after);
     return h + '</div>';
   }
@@ -406,72 +437,102 @@ function noteHtml(key, st){
   return '';
 }
 function probeDoneText(key, st, p){
-  const left = p.left.length ? `<p class="ap-small ap-muted">아직 확인 못 한 선행 개념: ${p.left.map(x => q_(key, x)).join(', ')} (길잡이 화면에서 이어서 확인할 수 있어요)</p>` : '';
-  if(p.manual && (p.root == null || p.root === p.from)) return `<p><b>확인 끝.</b> 물어본 선행 개념 중에 ${SL('unknown', '은', '는')} 없었어요.</p>${left}`;
-  if(p.slip || p.root == null) return `<p><b>원인 찾기 끝.</b> 실수였던 것 같아요. ${q_(key, p.from)}${josa(cshort(key, p.from), '은', '는')} ${pill('half')}${yo(ST('half').label)}.</p>${left}`;
-  if(!p.found) return `<p><b>원인 찾기 끝 · 출발점은 ${q_(key, p.root)} 자체예요.</b> 확인한 선행 개념은 괜찮아요. 이 개념부터 강의로 보면 돼요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, p.root, '강의 보기')}</div>${left}`;
+  const left = p.left.length ? `<p class="ap-small ap-muted">아직 안 물어본 ${TERM.pre}: ${p.left.map(x => q_(key, x)).join(', ')} (길잡이에서 이어서 풀 수 있어요)</p>` : '';
+  if(p.manual && (p.root == null || p.root === p.from)) return `<p><b>${TERM.probe} 끝.</b> 물어본 ${TERM.pre} 중에 ${SL('unknown', '은', '는')} 없었어요.</p>${left}`;
+  if(p.slip || p.root == null) return `<p><b>${TERM.probe} 끝.</b> 실수였던 것 같아요. ${q_(key, p.from)}${josa(cshort(key, p.from), '은', '는')} ${pill('half')}${yo(ST('half').label)}.</p>${left}`;
+  if(!p.found) return `<p><b>${TERM.probe} 끝 · 출발점은 ${q_(key, p.root)} 자체예요.</b> ${PJ('은', '는')} 괜찮아요. 이 개념부터 강의로 보면 돼요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, p.root, '강의 보기')}</div>${left}`;
   return `<p><b>출발점을 찾았어요: ${q_(key, p.root)}</b></p>${pathHtml(key, st, p.path)}<p class="ap-small ap-muted">왼쪽부터 공부할 순서예요. ${qj(key, p.root, '을', '를')} 정복하면 ${q_(key, p.from)}까지 차례로 풀려요.</p><div class="ap-row" style="margin-top:6px">${lecBtn(key, p.root, '출발점 강의 보기')}</div>${left}`;
 }
 function sessionSummary(){
   const key = SES.key, st = store.load(key), sum = summarize(SES.changes);
-  const ok = SES.results.filter(r => r.ok).length, roots = new Map();
+  const ok = SES.results.filter(r => r.ok).length, roots = new Map(), nChk = SES.results.filter(r => r.check != null).length;
   for(const p of SES.probes) if(p.root != null && !p.slip && !(p.manual && p.root === p.from)){ if(!roots.has(p.root)) roots.set(p.root, {root:p.root, path:p.path, from:new Set()}); roots.get(p.root).from.add(p.from); }
   const gaps = [...roots.values()], won = sum.filter(x => x.after === 'know' && x.before !== 'know' && statusOf(st, x.id) === 'know');
   const by = s => sum.filter(x => statusOf(st, x.id) === s);
   let h = `<div class="ap-narrow"><h2 class="ap-h2">${esc(SES.title)} 끝</h2>
-    <div class="ap-stats"><div class="ap-stat"><b>${ok}/${SES.results.length}</b><span>맞힘 (확인 문제 ${SES.results.filter(r => r.check != null).length}개 포함)</span></div><div class="ap-stat"><b>${won.length}</b><span>${ST('know').icon} 새로 정복</span></div><div class="ap-stat"><b>${gaps.length}</b><span>찾은 출발점</span></div></div>`;
+    <div class="ap-stats"><div class="ap-stat"><b>${ok}/${SES.results.length}</b><span>맞힘${nChk ? ` (${TERM.icon} ${TERM.probe} ${nChk}개 포함)` : ''}</span></div><div class="ap-stat"><b>${won.length}</b><span>${ST('know').icon} 새로 정복</span></div><div class="ap-stat"><b>${gaps.length}</b><span>찾은 출발점</span></div></div>`;
   if(won.length) h += `<div class="ap-card ap-wincard"><div class="ap-h3">${ST('know').icon} 새로 정복한 개념</div>${chips(key, st, won.map(x => x.id))}</div>`;
   if(SES.mode === 'pre' && SES.probes.length && !gaps.length) h += `<div class="ap-card">${probeDoneText(key, st, SES.probes[SES.probes.length - 1])}</div>`;
-  if(gaps.length) h += `<div class="ap-card em">${cardHead('찾은 출발점 → 여기부터 공부하면 돼요', 'guide')}${gaps.map(g => `<div style="margin:8px 0">${pathHtml(key, st, g.path)}${g.from.size > 1 ? `<p class="ap-small ap-muted" style="margin:0 0 6px">틀린 개념 ${g.from.size}개(${[...g.from].map(f => q_(key, f)).join(', ')})가 모두 여기로 이어져요.</p>` : ''}<div class="ap-row">${lecBtn(key, g.root, '출발점 강의 보기')}<button class="ap-btn sm" data-start="concept" data-arg="${g.root}">출발점 정복하기</button></div></div>`).join('')}</div>`;
+  if(gaps.length) h += `<div class="ap-card em">${cardHead('찾은 출발점 → 여기부터 공부하면 돼요', 'guide')}${gaps.map(g => `<div style="margin:8px 0">${pathHtml(key, st, g.path)}${g.from.size > 1 ? `<p class="ap-small ap-muted" style="margin:0 0 6px">틀린 개념 ${g.from.size}개(${[...g.from].map(f => q_(key, f)).join(', ')})가 모두 여기로 이어져요.</p>` : ''}<div class="ap-row"><button class="ap-btn sm pri" data-start="concept" data-arg="${g.root}">출발점 정복하기</button>${lecBtn(key, g.root, '출발점 강의 보기')}</div></div>`).join('')}</div>`;
   const groups = [['half', `${RULES.need}번 연속 맞히면 정복이에요`], ['unknown', '강의를 보고 다시 도전해요'], ['know', '정복한 개념이에요']].map(([s, d]) => { const xs = by(s); return xs.length ? `<li>${pill(s)} <span class="ap-small ap-muted">${d}</span><div style="margin-top:4px">${chips(key, st, xs.map(x => x.id))}</div></li>` : ''; }).join('');
   if(groups) h += `<div class="ap-card">${cardHead('이번에 푼 개념의 지금 상태', 'change')}<ul class="ap-glist">${groups}</ul></div>`;
-  h += `<div class="ap-row"><button class="ap-btn pri" data-start="smart">10문제 더</button><a class="ap-btn" href="#/${key}/today">길잡이로</a><a class="ap-btn" href="#/${key}/map">지도 보기</a></div></div>`;
+  h += `<div class="ap-row"><a class="ap-btn pri" href="#/${key}/today">${COPY.tabs.today}에서 다음 할 일 보기</a><button class="ap-btn" data-start="smart">10문제 더</button><a class="ap-btn" href="#/${key}/map">지도 보기</a></div></div>`;
   return h;
 }
 
 // ── 화면: 길잡이 ──
+// 지금 할 일 하나: 처음 → 진단 / 출발점 → 정복 / 다시 점검 / 모험 중 마무리 / 그 밖 → 오늘의 10문제
+function nextAction(key, st, r){
+  const M = COPY.modes, g = r.guide, N = RULES.need;
+  if(!st.attempts.length) return {title:`${M.diag.title}로 시작해요`,
+    why:`장마다 한 문제씩 풀어서 아는 곳과 모르는 곳을 빠르게 찾아요. 틀리면 ${TERM.icon} ${TERM.probe}로 어디서부터 막혔는지도 찾아 줘요.`,
+    btns:`<button class="ap-btn pri big" data-start="diag">${M.diag.title} 시작</button><button class="ap-btn" data-tour-start="1">1분 둘러보기</button>`};
+  if(g.starts.length){
+    const s = g.starts[0], sid = sceneOf(key, s.id), k = st.k[s.id], read = sid && (st.read[sid] || 0) > (k ? k.last : 0);
+    const why = (s.unlocks.length ? `정복 실패 개념들의 뿌리(${roleTag('start')})예요. 이걸 정복하면 ${s.unlocks.length}개가 같이 풀려요.` : `정복 실패한 개념 중 ${PJ('은', '는')} 괜찮은 곳(${roleTag('start')})이에요.`)
+      + (read || !sid ? ` 문제를 ${N}번 연속 맞히면 정복이에요.` : ` 강의로 먼저 보고, 문제를 ${N}번 연속 맞히면 정복이에요.`);
+    const btns = read || !sid ? `<button class="ap-btn pri big" data-start="concept" data-arg="${s.id}">정복하러 가기</button>${sid ? `<a class="ap-btn" href="${sceneLink(key, sid)}">강의 다시 보기</a>` : ''}`
+      : `<a class="ap-btn pri big" href="${sceneLink(key, sid)}">강의 먼저 보기</a><button class="ap-btn" data-start="concept" data-arg="${s.id}">바로 정복하기</button>`;
+    return {title:`「${esc(cshort(key, s.id))}」 정복하기`, why, btns};
+  }
+  if(r.due.length) return {title:`${COPY.due.icon} ${M.review.title} ${r.due.length}개`, why:'정복한 개념도 시간이 지나면 잊어요. 한 번씩 다시 맞혀서 정복을 지켜요.', btns:`<button class="ap-btn pri big" data-start="review">${M.review.title} 시작</button>`};
+  if(r.half.length) return {title:`${ic('half')} ${ST('half').label} ${r.half.length}개 마무리`, why:'한두 번만 더 맞히면 정복이에요.', btns:`<button class="ap-btn pri big" data-start="redo">${M.redo.title}</button>`};
+  return {smart:true, title:M.smart.title, why:`${ST('none').label} 중 중요한 개념부터 골라서 지도를 넓혀요.`, btns:`<button class="ap-btn pri big" data-start="smart">${M.smart.title}</button>`};
+}
+function nextCard(key, st, r){
+  const a = nextAction(key, st, r), tried = st.attempts.length;
+  return `<div class="ap-card ap-next" data-tour="start">${cardHead(COPY.titles.next, 'next')}<div class="ap-ntitle">${a.title}</div><p class="ap-small" style="margin:4px 0 12px">${a.why}</p><div class="ap-row">${a.btns}</div>${tried && !a.smart ? `<p class="ap-small ap-muted" style="margin:10px 0 0">또는 <button class="ap-linkbtn" data-start="smart">${COPY.modes.smart.title}</button> — 알아서 골라 섞어 줘요</p>` : ''}</div>`;
+}
 function statusCard(key, st, r){
-  const tot = r.total, c = r.count, g = r.guide, J = COPY.journey;
-  const extra = {unknown:c.unknown ? ` (출발점 ${g.starts.length} · 막힘 ${g.blocked.length})` : ''};
-  return `<div class="ap-card" data-tour="status">${cardHead(COPY.titles.status, 'status', COPY.titles.statusSub({short:S(key).data.short, total:tot, count:c}))}
+  const tot = r.total, c = r.count, J = COPY.journey, data = S(key).data, n = st.attempts.length;
+  return `<div class="ap-card" data-tour="status">${cardHead(COPY.titles.status, 'status', COPY.titles.statusSub({short:data.short, total:tot, count:c}))}
     <div class="ap-stack" role="img" aria-label="${J.map(s => `${ST(s).label} ${c[s]}`).join(', ')}">${['know', 'half', 'unknown', 'none'].map(s => `<i class="s-${s}" style="width:${c[s] / tot * 100}%"></i>`).join('')}</div>
-    <ul class="ap-defs">${J.map(s => `<li>${pill(s)}<span><span class="ap-num">${c[s]}개${extra[s] || ''}</span> · ${ST(s).rule()}</span></li>`).join('')}</ul>
-    <p class="ap-small ap-muted" style="margin:8px 0 0">${helpBtn('roles')} ${roleTag('start')} ${COPY.role.start.tip} · ${roleTag('blocked')} ${COPY.role.blocked.tip}. <a class="ap-link" href="#/${key}/map">지도에서 보기</a></p></div>`;
+    <div class="ap-counts">${J.map(s => `<button class="ap-count s-${s}" data-mapf-go="${s}" aria-label="${ST(s).label} ${c[s]}개, 지도에서 보기"><b>${c[s]}</b><span>${ST(s).icon} ${ST(s).label}</span></button>`).join('')}</div>
+    <p class="ap-small ap-muted" style="margin:8px 0 0">${ic('none')} → 맞히면 ${ic('half')} → <b>${RULES.need}번 연속</b>이면 ${ic('know')} · 틀리면 ${ic('unknown')} · 숫자를 누르면 지도에서 봐요</p>
+    <p class="ap-small ap-muted" style="margin:2px 0 0">푼 문제 ${n >= 400 ? '400+' : n} · ★5 핵심 정복 ${r.coreKnow}/${r.coreTotal} · 읽은 장면 ${Object.keys(st.read).length}/${Object.keys(data.scenes).length}</p></div>`;
 }
 function guideCard(key, st, r){
-  const g = r.guide, {ix} = S(key);
-  if(!g.unknown.length) return `<div class="ap-card ap-empty" data-tour="guide">${cardHead(COPY.titles.guide, 'guide', COPY.titles.guideEmpty)}<p class="ap-small ap-muted" style="margin:0">문제를 풀다가 틀리면 여기에 길잡이가 나타나요. 먼저 알아야 할 개념을 따라 내려가서 <b>어디서부터 공부하면 되는지</b>(${roleTag('start')}) 알려 줘요.</p></div>`;
-  const one = s => {
-    const sid = sceneOf(key, s.id), k = st.k[s.id], read = sid && (st.read[sid] || 0) > (k ? k.last : 0);
-    return `<div class="ap-guide"><div class="ap-ghead">${ic('unknown')}<b>${esc(cname(key, s.id))}</b>${roleTag('start')}<span class="ap-num" title="시험 중요도">${'★'.repeat(ix.byId.get(s.id).stars)}</span></div>
-      <p class="ap-small ap-muted" style="margin:4px 0 0">${s.unlocks.length ? `이걸 정복하면 이어서 풀리는 ${ST('unknown').label} ${s.unlocks.length}개` : `이 개념 하나만 ${ST('unknown').label}${yo(ST('unknown').label)}.`}</p>${s.unlocks.length ? `<div style="margin-top:4px">${chips(key, st, s.unlocks.slice(0, 6))}${s.unlocks.length > 6 ? ` <span class="ap-small ap-muted">외 ${s.unlocks.length - 6}개</span>` : ''}</div>` : ''}
-      <ol class="ap-steps">
-        ${s.unchecked.length ? `<li><span>아직 확인 안 된 선행 개념 ${chips(key, st, s.unchecked)} — 여기가 진짜 원인일 수도 있어요.<div class="ap-row"><button class="ap-btn sm" data-start="pre" data-arg="${s.id}">선행 먼저 확인</button></div></span></li>` : ''}
-        <li class="${read ? 'done' : ''}"><span>강의로 개념 다시 보기${read ? ' (읽음)' : ''}<div class="ap-row">${lecBtn(key, s.id, '강의 열기')}</div></span></li>
-        <li><span>확인 문제로 정복하기 — ${RULES.need}번 연속 맞히면 ${ST('know').icon} ${ST('know').label}<div class="ap-row"><button class="ap-btn sm pri" data-start="concept" data-arg="${s.id}">정복하러 가기</button></div></span></li>
-      </ol></div>`;
-  };
-  const top = g.starts.slice(0, 4), more = g.starts.slice(4);
-  const intro = g.blocked.length ? `${ST('unknown').label} ${g.unknown.length}개를 선행 관계로 따라 내려가면 출발점 ${g.starts.length}개로 모여요. 출발점부터 정복하면 그 위 개념이 같이 풀려요. 막힌 개념 ${g.blocked.length}개는 출발점을 정복한 뒤에 다시 풀면 돼요.` : `${ST('unknown').label} ${g.unknown.length}개가 모두 출발점이에요 (먼저 알아야 할 개념은 괜찮아요). 중요한 것부터 하나씩 정복하면 돼요.`;
-  return `<div class="ap-card em" data-tour="guide">${cardHead(COPY.titles.guide, 'guide', COPY.titles.guideSub)}<p class="ap-small ap-muted" style="margin:0 0 8px">${intro}</p>
-    ${top.map(one).join('')}${more.length ? `<details><summary class="ap-small">출발점 ${more.length}개 더 보기</summary>${more.map(one).join('')}</details>` : ''}</div>`;
+  const g = r.guide, {ix} = S(key), U = ST('unknown').label;
+  if(!g.unknown.length) return `<div class="ap-card ap-empty" data-tour="guide">${cardHead(COPY.titles.guide, 'guide')}<p class="ap-small ap-muted" style="margin:0">${COPY.titles.guideEmpty}. 틀린 문제가 생기면 ${PJ('을', '를')} 따라가서 어디서부터 공부하면 되는지(${roleTag('start')}) 여기에 알려 줘요.</p></div>`;
+  const row = s => `<li><div class="ap-ghead">${ic('unknown')}<a class="ap-gname" href="#/${key}/map/${s.id}">${esc(cshort(key, s.id))}</a><span class="ap-num" title="시험 중요도">${'★'.repeat(ix.byId.get(s.id).stars)}</span></div>
+    ${s.unlocks.length ? `<div class="ap-small ap-muted">정복하면 같이 풀림: ${s.unlocks.slice(0, 3).map(u => esc(cshort(key, u))).join(', ')}${s.unlocks.length > 3 ? ` 외 ${s.unlocks.length - 3}개` : ''}</div>` : ''}
+    <div class="ap-row" style="margin-top:6px"><button class="ap-btn sm pri" data-start="concept" data-arg="${s.id}">정복하기</button>${lecBtn(key, s.id, '강의')}${s.unchecked.length ? `<button class="ap-btn sm" data-start="pre" data-arg="${s.id}" title="아직 안 물어본 ${PJ('을', '를')} 짧은 문제로 풀어서 진짜 원인이 더 아래에 있는지 봐요">${TERM.icon} ${TERM.pre.slice(0, 2)} ${s.unchecked.length}개 풀어 보기</button>` : ''}</div></li>`;
+  const top = g.starts.slice(0, 3), more = g.starts.slice(3);
+  const intro = `${U} ${g.unknown.length}개를 ${TERM.pre} 쪽으로 따라가면 ${roleTag('start')} ${g.starts.length}개로 모여요. 위에서부터 정복하면 돼요.${g.blocked.length ? ` ${COPY.role.blocked.label} ${g.blocked.length}개는 출발점을 정복하면 같이 풀려요.` : ''}`;
+  return `<div class="ap-card em" data-tour="guide">${cardHead(COPY.titles.guide, 'guide')}<p class="ap-small ap-muted" style="margin:0 0 4px">${intro}</p><ol class="ap-glist2">${top.map(row).join('')}</ol>${more.length ? `<details><summary class="ap-small">출발점 ${more.length}개 더 보기</summary><ol class="ap-glist2">${more.map(row).join('')}</ol></details>` : ''}</div>`;
+}
+function moreCard(key, st, r){
+  const T = COPY.titles, M = COPY.modes, rows = [];
+  const few = (ids, n = 4) => `<span class="ap-chips">${ids.slice(0, n).map(id => cchip(key, st, id)).join('')}${ids.length > n ? `<span class="ap-small ap-muted">외 ${ids.length - n}개</span>` : ''}</span>`;
+  const row = (head, help, btn, body) => `<li><div class="ap-mhead"><span class="ap-ch3" style="margin:0">${help ? helpBtn(help) : ''}<span>${head}</span></span>${btn}</div>${body}</li>`;
+  if(r.half.length) rows.push(row(`${ic('half')} ${T.half} · ${r.half.length}개`, 'change', `<button class="ap-btn sm" data-start="redo">${M.redo.title}</button>`, few(r.half)));
+  if(r.due.length) rows.push(row(`${COPY.due.icon} ${T.due} · ${r.due.length}개`, 'review', `<button class="ap-btn sm" data-start="review">${M.review.title}</button>`, few(r.due)));
+  if(r.untested.length && st.attempts.length) rows.push(row(`${ic('none')} ${T.untested} · ${r.untested.length}개`, 'stars', `<button class="ap-btn sm" data-start="diag">${M.diag.title}</button>`, few(r.untested)));
+  if(r.nextScene){ const sc = S(key).data.scenes[r.nextScene]; rows.push(row(`📖 ${T.next_read}`, '', '', `<a class="ap-link" href="${sceneLink(key, r.nextScene)}">${sc.lesson}강 · ${esc(sc.title)} →</a>`)); }
+  return rows.length ? `<div class="ap-card"><div class="ap-h3">${T.more}</div><ul class="ap-mlist">${rows.join('')}</ul></div>` : '';
+}
+function recentCard(key, st){
+  const xs = st.attempts.slice(-6).reverse();
+  return `<div class="ap-card">${cardHead(COPY.titles.recent, 'recent')}<ul class="ap-list ap-recent">${xs.map(a => { const id = a.chk != null ? a.chk : a.c[0];
+    return `<li><a href="#/${key}/map/${id}"><span class="ap-cname"><span class="${a.ok ? 'ap-okc' : 'ap-noc'}" aria-label="${a.ok ? '맞힘' : '틀림'}">${a.ok ? '✓' : '✗'}</span><span>${esc(cshort(key, id))}</span>${a.chk != null ? `<span class="ap-badge chk" title="틀린 문제의 원인을 찾으려고 앱이 낸 ${TERM.pre} 문제">${TERM.icon} ${TERM.probe}</span>` : ''}</span><span class="ap-num">${md(a.t)} ›</span></a></li>`; }).join('')}</ul></div>`;
+}
+function settingsCard(key){
+  const data = S(key).data;
+  return `<details class="ap-card ap-set"${RESET === key ? ' open' : ''}><summary>${COPY.titles.settings}</summary>
+    <div class="ap-ch3" style="margin-top:10px">${helpBtn('storage')}<span>기록 저장</span></div><p class="ap-small ap-muted" style="margin:0 0 8px">${storeText()}</p>
+    <div class="ap-row"><button class="ap-btn sm" data-tour-start="1">둘러보기 다시 보기</button><button class="ap-btn sm${RESET === key ? ' warn' : ''}" id="reset">${RESET === key ? '정말 지울까요? 한 번 더 누르면 지워져요' : `${esc(data.short)} 기록 지우기`}</button></div>
+    <p class="ap-small ap-muted" style="margin:10px 0 0">컴퓨터 단축키: <kbd>1</kbd>~<kbd>4</kbd> 보기 고르기 · <kbd>Enter</kbd> 다음 · <kbd>Esc</kbd> 창 닫기</p></details>`;
 }
 function renderToday(){
   const key = route.subj, st = store.load(key), {data, ix} = S(key), t = now(), r = recommend(ix, st, t);
-  const tried = st.attempts.length;
-  let h = `<div class="ap-narrow"><h2 class="ap-h2">${esc(data.name)} ${COPY.tabs.today}</h2>`;
-  h += `<div class="ap-stats"><div class="ap-stat"><b>${tried}</b><span>푼 문제</span></div><div class="ap-stat"><b>${r.count.know}/${r.total}</b><span>${ST('know').icon} 정복한 개념</span></div><div class="ap-stat"><b>${r.coreKnow}/${r.coreTotal}</b><span>★5 핵심 정복</span></div><div class="ap-stat"><b>${Object.keys(st.read).length}/${Object.keys(data.scenes).length}</b><span>읽은 장면</span></div></div>`;
-  h += `<div class="ap-row" style="margin-top:14px" data-tour="start">${tried ? `<button class="ap-btn pri" data-start="smart">${COPY.modes.smart.title}</button>` : `<button class="ap-btn pri" data-start="diag">${COPY.modes.diag.title}로 시작</button><button class="ap-btn" data-start="smart">바로 10문제</button>`}${r.due.length ? `<button class="ap-btn" data-start="review">${COPY.due.icon} ${COPY.modes.review.title} ${r.due.length}개</button>` : ''}</div>`;
-  if(!tried) h += `<div class="ap-card"><div class="ap-h3">처음이면 이렇게 해 보세요</div><ol class="ap-small" style="margin:0;padding-left:1.2em"><li><b>${COPY.modes.diag.title}</b>로 장마다 한 문제씩 풀어요. ${ic('none')} ${SL('none', '이', '가')} 걷히기 시작해요.</li><li>틀리면 그 개념의 <b>선행 개념</b>(먼저 알아야 하는 개념)을 확인 문제로 물어봐요. 어디서부터 모르는지(<b>출발점</b>) 찾을 때까지요.</li><li>출발점이 나오면 이 화면의 <b>길잡이</b>를 따라가요. 강의를 읽고 확인 문제를 <b>${RULES.need}번 연속</b> 맞히면 ${ic('know')} ${ST('know').label}${yo(ST('know').label)}.</li><li>다음 날부터는 <b>${COPY.modes.smart.title}</b>. 출발점, 모험 중, 다시 점검할 개념이 먼저 나와요.</li></ol><p class="ap-small ap-muted" style="margin:8px 0 0">처음이라 낯설면 <button class="ap-linkbtn" data-tour-start="1">1분 둘러보기</button>를 눌러 보세요.</p></div>`;
+  let h = `<div class="ap-narrow"><h2 class="ap-h2">${esc(data.name)}</h2>`;
+  h += nextCard(key, st, r);
   h += guideCard(key, st, r);
   h += statusCard(key, st, r);
-  if(r.half.length) h += `<div class="ap-card">${cardHead(`${ic('half')} ${COPY.titles.half} · ${r.half.length}개`, 'change')}${chips(key, st, r.half.slice(0, 12))}<div class="ap-row" style="margin-top:10px"><button class="ap-btn sm" data-start="redo">${COPY.modes.redo.title}</button></div></div>`;
-  if(r.due.length) h += `<div class="ap-card">${cardHead(`${COPY.due.icon} ${COPY.titles.due} · ${r.due.length}개`, 'review')}${chips(key, st, r.due.slice(0, 12))}<div class="ap-row" style="margin-top:10px"><button class="ap-btn sm" data-start="review">${COPY.modes.review.title}</button></div></div>`;
-  if(r.untested.length && tried) h += `<div class="ap-card">${cardHead(`${ic('none')} ${COPY.titles.untested}`, 'stars')}${chips(key, st, r.untested.slice(0, 8))}<div class="ap-row" style="margin-top:10px"><button class="ap-btn sm" data-start="diag">진단으로 탐험하기</button></div></div>`;
-  if(r.nextScene){ const sc = data.scenes[r.nextScene]; h += `<div class="ap-card"><div class="ap-h3">${COPY.titles.next}</div><a class="ap-link" href="${sceneLink(key, r.nextScene)}">${sc.lesson}강 · ${esc(sc.title)} →</a></div>`; }
+  h += moreCard(key, st, r);
   h += aiCoachHtml();
-  if(tried) h += `<div class="ap-card"><div class="ap-h3">${COPY.titles.recent}</div><ul class="ap-list">${st.attempts.slice(-8).reverse().map(a => `<li><span class="ap-cname"><span class="${a.ok ? 'ap-okc' : 'ap-noc'}">${a.ok ? '✓' : '✗'}</span><span>${esc(cshort(key, a.c[0]))}</span>${a.chk != null ? '<span class="ap-badge chk">확인</span>' : ''}</span><span class="ap-num">${md(a.t)}</span></li>`).join('')}</ul></div>`;
-  h += `<div class="ap-card">${cardHead(COPY.titles.storage, 'storage')}<p class="ap-small ap-muted" style="margin:0 0 8px">${storeText()}</p><button class="ap-btn sm" id="reset">${RESET === key ? '정말 지울까요? 한 번 더 누르면 지워져요' : `${esc(data.short)} 기록 지우기`}</button></div>`;
+  if(st.attempts.length) h += recentCard(key, st);
+  h += settingsCard(key);
   return h + `</div>`;
 }
 let RESET = null;
@@ -489,14 +550,15 @@ function renderLec(){
   const [ln] = arg.split('-'), L = data.lessons.find(l => String(l.num) === ln);
   if(!L) return `<p>강의를 찾을 수 없어요.</p>`;
   const idx = data.lessons.indexOf(L), prev = data.lessons[idx - 1], next = data.lessons[idx + 1];
+  const read = L.scenes.filter(s => st.read[s]).length, unread = L.scenes.find(s => !st.read[s]);
   let h = `<article class="ap-narrow"><div class="ap-row" style="margin-bottom:12px"><a class="ap-btn sm" href="#/${key}/lec">← 강의 목록</a>${prev ? `<a class="ap-btn sm" href="#/${key}/lec/${prev.num}">${prev.num}강</a>` : ''}${next ? `<a class="ap-btn sm" href="#/${key}/lec/${next.num}">${next.num}강 →</a>` : ''}</div>
-    <div class="ap-lhead"><div class="ap-eyebrow">${L.num}강 · ${esc(L.meta)}</div><h2>${esc(L.title)}</h2><p class="lede ap-muted">${L.lede}</p>${L.flow ? `<div class="flow"><span class="lab">이 강의 지도</span> ${L.flow}</div>` : ''}
-    <div class="ap-row" style="margin-top:10px"><button class="ap-btn sm" data-start="lesson" data-arg="${L.num}">이 강 문제 풀기</button></div></div>`;
+    <div class="ap-lhead"><div class="ap-eyebrow">${L.num}강 · 장면 ${L.scenes.length}개 · ${read}개 읽음</div><h2>${esc(L.title)}</h2><p class="lede ap-muted">${L.lede}</p>${L.flow ? `<div class="flow"><span class="lab">이 강의 지도</span> ${L.flow}</div>` : ''}
+    <div class="ap-row" style="margin-top:10px">${read && unread ? `<a class="ap-btn sm pri" href="#/${key}/lec/${unread}">안 읽은 장면으로 ↓</a>` : ''}<button class="ap-btn sm" data-start="lesson" data-arg="${L.num}">이 강 문제 풀기</button></div></div>`;
   L.scenes.forEach(sid => { const sc = data.scenes[sid], nq = poolOf(key, q => q.scene === sid).length;
-    h += `<section class="ap-scene lec" id="sc-${sid}"><span class="ap-stag">Scene ${sc.k}${sc.stars ? ` · 중요도 ${'★'.repeat(sc.stars)}` : ''}${sc.tag ? ' · ' + esc(sc.tag) : ''}</span><h3>${esc(sc.title)}</h3>
-      ${sc.concepts.length ? `<div class="ap-qc" style="margin:8px 0 4px"><span>이 장면의 개념</span>${sc.concepts.map(c => `${cchip(key, st, c)}${pillOf(st, c)}`).join(' ')}</div>` : ''}
+    h += `<section class="ap-scene lec" id="sc-${sid}"><span class="ap-stag">장면 ${sc.k}${sc.stars ? ` · 중요도 ${'★'.repeat(sc.stars)}` : ''}${sc.tag ? ' · ' + esc(sc.tag) : ''}${st.read[sid] ? ' · ✓ 읽음' : ''}</span><h3>${esc(sc.title)}</h3>
+      ${sc.concepts.length ? `<div class="ap-qc" style="margin:8px 0 4px"><span>이 장면의 개념</span>${sc.concepts.map(c => `${nchip(key, c)}${pillOf(st, c)}`).join(' ')}</div>` : ''}
       ${sc.html}
-      <div class="ap-sfoot"><div class="ap-row"><button class="ap-btn sm${st.read[sid] ? '' : ' pri'}" data-read="${sid}">${st.read[sid] ? '✓ 읽음' : '다 읽었어요'}</button>${nq ? `<button class="ap-btn sm" data-start="scene" data-arg="${sid}">이 장면 문제 ${nq}개</button>` : ''}${sc.concepts.length ? `<button class="ap-btn sm" data-start="concept" data-arg="${sc.concepts[0]}">개념 정복하기</button>` : ''}${AI.ok && sc.concepts.length ? `<button class="ap-btn sm" data-aigen="${sc.concepts[0]}">AI가 새 문제 만들기</button>` : ''}</div></div></section>`; });
+      <div class="ap-sfoot"><div class="ap-row"><button class="ap-btn sm${st.read[sid] ? '' : ' pri'}" data-read="${sid}">${st.read[sid] ? '✓ 읽음' : '다 읽었어요'}</button>${sc.concepts.length ? `<button class="ap-btn sm" data-start="concept" data-arg="${sc.concepts[0]}">개념 정복하기</button>` : ''}${nq ? `<button class="ap-btn sm" data-start="scene" data-arg="${sid}">이 장면 문제 ${nq}개</button>` : ''}${AI.ok && sc.concepts.length ? `<button class="ap-btn sm" data-aigen="${sc.concepts[0]}">AI가 새 문제 만들기</button>` : ''}</div></div></section>`; });
   if(L.sum) h += `<div class="sum lec" style="margin-top:36px;background:var(--surface);border:2px solid var(--ink);border-radius:10px;padding:14px 16px"><h3 style="font-family:var(--display);font-weight:400">📌 ${L.num}강 한 줄 요약</h3>${L.sum}</div>`;
   if(L.next) h += `<p class="ap-muted ap-small" style="margin-top:14px">${L.next}</p>`;
   h += `<div class="ap-row" style="margin-top:20px;justify-content:space-between">${prev ? `<a class="ap-btn" href="#/${key}/lec/${prev.num}">← ${prev.num}강</a>` : '<span></span>'}${next ? `<a class="ap-btn pri" href="#/${key}/lec/${next.num}">${next.num}강으로 →</a>` : ''}</div></article>`;
@@ -504,48 +566,49 @@ function renderLec(){
 }
 
 // ── 화면: 지도 ──
-let MAPF = 'all';
+// 폰: 칸을 누르면 개념 창이 아래에서 올라온다(닫으면 보던 자리 그대로). 넓은 화면: 오른쪽에 붙는다.
+let MAPF = 'all', SHEET = false;   // SHEET: 방금 그린 화면에 개념 창이 열려 있었나 (열린 채 다른 개념으로 바꿀 땐 올라오는 움직임 생략)
 function tileLine(key, st, id, t){
   const k = statusOf(st, id), role = roleOf(key, st, id);
   return `${ST(k).icon} ${ST(k).label}${progress(st, id)}${role ? ' · ' + COPY.role[role].label : ''}${isDue(st, id, t) ? ' · ' + COPY.due.label : ''}`;
 }
 function renderMap(){
   const key = route.subj, st = store.load(key), {data, ix} = S(key), t = now(), r = recommend(ix, st, t);
-  const sel = route.arg ? +route.arg : null;
-  const show = c => MAPF === 'all' || (MAPF === 'start' ? roleOf(key, st, c.id) === 'start' : statusOf(st, c.id) === MAPF);
-  const F = [['all', '전체', r.total], ['unknown', `${ST('unknown').icon} ${ST('unknown').label}`, r.count.unknown], ['start', COPY.role.start.label, r.guide.starts.length], ['half', `${ST('half').icon} ${ST('half').label}`, r.count.half], ['none', `${ST('none').icon} ${ST('none').label}`, r.count.none], ['know', `${ST('know').icon} ${ST('know').label}`, r.count.know]];
-  let h = `<div class="ap-maplay"><div><div class="ap-ch3 ap-h2row">${helpBtn('map')}<h2 class="ap-h2">${COPY.titles.map}</h2></div><p class="ap-muted ap-small">${esc(data.short)} 개념 ${r.total}개를 장별로 늘어놓았어요. 칸마다 지금 상태가 적혀 있어요. ★는 시험 중요도예요 ${helpBtn('stars')}</p>
-    <ul class="ap-defs" style="margin-bottom:6px">${COPY.journey.map(s => `<li>${pill(s)}<span class="ap-small">${ST(s).rule()}</span></li>`).join('')}</ul>
-    <div class="ap-filter" role="group" aria-label="상태별로 거르기" data-tour="filter">${F.map(([v, l, n]) => `<button data-mapf="${v}" aria-pressed="${MAPF === v}">${l} <span class="ap-num" style="color:inherit">${n}</span></button>`).join('')}</div>`;
+  const sel = route.arg ? +route.arg : null, open = sel != null && ix.byId.has(sel), due = new Set(r.due);
+  const stay = SHEET && open ? ' stay' : ''; SHEET = open;
+  const show = c => MAPF === 'all' || (MAPF === 'start' ? roleOf(key, st, c.id) === 'start' : MAPF === 'due' ? due.has(c.id) : statusOf(st, c.id) === MAPF);
+  const F = [['all', '전체', r.total], ['unknown', `${ST('unknown').icon} ${ST('unknown').label}`, r.count.unknown], ['start', COPY.role.start.label, r.guide.starts.length], ['half', `${ST('half').icon} ${ST('half').label}`, r.count.half], ['due', `${COPY.due.icon} ${COPY.due.label}`, r.due.length], ['none', `${ST('none').icon} ${ST('none').label}`, r.count.none], ['know', `${ST('know').icon} ${ST('know').label}`, r.count.know]];
+  let h = `<div class="ap-maplay"><div><div class="ap-ch3 ap-h2row">${helpBtn('map')}<h2 class="ap-h2">${COPY.titles.map}</h2></div><p class="ap-muted ap-small">${esc(data.short)} 개념 ${r.total}개를 장별로 늘어놓았어요. 칸을 누르면 왜 이 상태인지와 할 일이 나와요. ★는 시험 중요도 ${helpBtn('stars')}</p>
+    <div class="ap-filter" role="group" aria-label="상태별로 거르기" data-tour="filter">${F.map(([v, l, n]) => `<button data-mapf="${v}" aria-pressed="${MAPF === v}"${n || v === 'all' ? '' : ' class="zero"'}>${l} <span class="ap-num" style="color:inherit">${n}</span></button>`).join('')}</div>`;
   let any = false;
   for(const ch of data.chapters){
     const cs = data.concepts.filter(c => c.chapter === ch.id && !c.out && show(c)); if(!cs.length) continue;
     h += `<div class="ap-ch">${chLabel(key, ch.id)} · ${esc(ch.title)}</div><div class="ap-tiles">${cs.map(c => { const k = statusOf(st, c.id), role = roleOf(key, st, c.id), first = !any; any = true;
-      return `<button class="ap-tile s-${k}${role === 'start' ? ' start' : ''}" data-cid="${c.id}"${first ? ' data-tour="tile"' : ''} aria-current="${c.id === sel}" aria-label="${esc(c.title)}, ${tileLine(key, st, c.id, t)}"><span class="id">#${c.id} · ${'★'.repeat(c.stars)}</span><span>${esc(c.short || c.title)}</span><span class="sl">${tileLine(key, st, c.id, t)}</span></button>`; }).join('')}</div>`;
+      return `<button class="ap-tile s-${k}${role === 'start' ? ' start' : ''}" data-cid="${c.id}"${first ? ' data-tour="tile"' : ''} aria-current="${c.id === sel}" aria-label="${esc(c.title)}, ${tileLine(key, st, c.id, t)}"><span class="id">${'★'.repeat(c.stars)}</span><span>${esc(c.short || c.title)}</span><span class="sl">${tileLine(key, st, c.id, t)}</span></button>`; }).join('')}</div>`;
   }
-  if(!any) h += `<p class="ap-muted ap-small" style="margin-top:14px">이 조건에 맞는 개념이 없어요.</p>`;
-  h += `</div><aside class="ap-side" id="side">${sel && ix.byId.has(sel) ? conceptPanel(key, sel) : `<div class="ap-card"><p class="ap-muted" style="margin:0">개념을 하나 누르면 여기에 상태와 그 이유, 먼저 알아야 할 개념, 공부 순서가 나와요.</p></div>`}</aside></div>`;
+  if(!any) h += `<p class="ap-muted ap-small" style="margin-top:14px">이 조건에 맞는 개념이 없어요. <button class="ap-linkbtn" data-mapf="all">전체 보기</button></p>`;
+  h += `</div>${open ? `<div class="ap-sheet-bg${stay}" data-close-sheet aria-hidden="true"></div>` : ''}<aside class="ap-side${open ? ' open' + stay : ''}" id="side"${open ? ` aria-label="${esc(cname(key, sel))} 설명"` : ''}>${open ? conceptPanel(key, sel) : `<div class="ap-card"><p class="ap-muted" style="margin:0">개념을 하나 누르면 여기에 상태와 그 이유, 먼저 알아야 할 개념, 할 일 버튼이 나와요.</p></div>`}</aside></div>`;
   return h;
 }
 function conceptPanel(key, id){
   const st = store.load(key), {ix} = S(key), c = ix.byId.get(id), t = now(); if(!c) return '';
-  const s = statusOf(st, id), role = roleOf(key, st, id), pre = c.prereq.filter(ix.live), nxt = c.next.filter(ix.live), U = ST('unknown').label;
+  const s = statusOf(st, id), role = roleOf(key, st, id), pre = c.prereq.filter(ix.live), nxt = c.next.filter(ix.live), U = ST('unknown').label, P = TERM.pre;
   const unchecked = uncheckedPre(ix, st, id);
   let guideBox = '';
-  if(role === 'start') guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('출발점이에요', 'roles')}<p>먼저 알아야 할 개념 중에 ${SL('unknown', '은', '는')} 없어요. 이 개념부터 강의로 보고 정복하면 돼요.${unchecked.length ? ` 다만 아직 확인 안 된 선행 개념 ${unchecked.map(x => q_(key, x)).join(', ')}${josa(cshort(key, unchecked[unchecked.length - 1]), '이', '가')} 있어요.` : ''}</p></div>`;
+  if(role === 'start') guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('출발점이에요', 'roles')}<p>${P} 중에 ${SL('unknown', '은', '는')} 없어요. 이 개념부터 강의로 보고 정복하면 돼요.${unchecked.length ? ` 다만 아직 안 물어본 ${P} ${unchecked.map(x => q_(key, x)).join(', ')}${josa(cshort(key, unchecked[unchecked.length - 1]), '이', '가')} 있어요. 위의 <b>${TERM.icon} ${P.slice(0, 2)} 풀어 보기</b>로 확인할 수 있어요.` : ''}</p></div>`;
   else if(s !== 'unknown' && unknownPre(ix, st, id).length){ const up = unknownPre(ix, st, id);
-    guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('기초가 비어 있어요', 'roles')}<p>이 개념은 ${SL(s, '이지만', '지만')} 먼저 알아야 할 ${up.map(x => q_(key, x)).join(', ')}${josa(cshort(key, up[up.length - 1]), '이', '가')} ${U}${yo(U)}. 응용 문제에서 흔들릴 수 있으니 선행부터 정복해 두세요.</p></div>`; }
+    guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('기초가 비어 있어요', 'roles')}<p>이 개념은 ${SL(s, '이지만', '지만')} 먼저 알아야 할 ${up.map(x => q_(key, x)).join(', ')}${josa(cshort(key, up[up.length - 1]), '이', '가')} ${U}${yo(U)}. 응용 문제에서 흔들릴 수 있으니 기초부터 정복해 두세요.</p></div>`; }
   else if(role === 'blocked'){ const starts = [...startsOf(ix, st, id)], path = chainTo(ix, st, starts[0], id), up = unknownPre(ix, st, id);
-    guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('막혀 있어요', 'roles')}<p>먼저 알아야 할 ${up.map(x => q_(key, x)).join(', ')}${josa(cshort(key, up[up.length - 1]), '이', '가')} ${U}${yo(U)}. 이 순서로 정복하면 돼요:</p>${pathHtml(key, st, path)}${starts.length > 1 ? `<p class="ap-small ap-muted">다른 출발점: ${starts.slice(1).map(x => q_(key, x)).join(', ')}</p>` : ''}</div>`; }
-  return `<div class="ap-card"><div class="ap-small ap-muted">${chLabel(key, c.chapter)} · 중요도 ${'★'.repeat(c.stars)} ${helpBtn('stars')} · <span class="ap-num">#${c.id}</span></div><h3 style="font-size:1.2rem;margin:4px 0 8px">${esc(c.title)}</h3>
+    guideBox = `<div class="ap-probe" style="margin-top:10px">${cardHead('막혀 있어요', 'roles')}<p>먼저 알아야 할 ${up.map(x => q_(key, x)).join(', ')}${josa(cshort(key, up[up.length - 1]), '이', '가')} ${U}${yo(U)}. 이 순서로 정복하면 돼요:</p>${pathHtml(key, st, path)}<div class="ap-row" style="margin-top:6px"><button class="ap-btn sm pri" data-start="concept" data-arg="${starts[0]}">출발점 ${q_(key, starts[0])} 정복하기</button></div>${starts.length > 1 ? `<p class="ap-small ap-muted">다른 출발점: ${starts.slice(1).map(x => q_(key, x)).join(', ')}</p>` : ''}</div>`; }
+  return `<div class="ap-card ap-panel"><div class="ap-phead"><div class="ap-small ap-muted">${chLabel(key, c.chapter)} · 중요도 ${'★'.repeat(c.stars)} ${helpBtn('stars')}</div><button class="ap-sheet-x" data-close-sheet aria-label="닫기">×</button></div><h3 style="font-size:1.2rem;margin:4px 0 8px">${esc(c.title)}</h3>
     <div class="ap-row">${pillOf(st, id)}${roleTag(role)}${isDue(st, id, t) ? `<span class="ap-badge">${COPY.due.icon} ${COPY.due.label}</span>` : ''}</div>
-    <dl class="ap-kv"><dt>${COPY.titles.panelBasis} ${helpBtn('basis')}</dt><dd>${stateLine(st, id, t)}</dd>${st.k[id] && st.k[id].h ? `<dt>${COPY.titles.panelHist}</dt><dd>${histHtml(st, id)} <span class="ap-small ap-muted">(왼쪽이 오래된 것)</span></dd>` : ''}</dl>
+    <dl class="ap-kv"><dt>${COPY.titles.panelBasis} ${helpBtn('basis')}</dt><dd>${stateLine(st, id, t)}</dd>${st.k[id] && st.k[id].h ? `<dt>${COPY.titles.panelHist}</dt><dd>${histHtml(st, id)} <span class="ap-small ap-muted">(오래된 것 → 최근)</span></dd>` : ''}</dl>
+    <div class="ap-row" style="margin-top:4px"><button class="ap-btn pri" data-start="concept" data-arg="${id}">이 개념 정복하기</button>${lecBtn(key, id)}${unchecked.length ? `<button class="ap-btn sm" data-start="pre" data-arg="${id}" title="아직 안 물어본 ${PJ('을', '를')} 짧은 문제로 풀어서 진짜 원인이 더 아래에 있는지 봐요">${TERM.icon} ${P.slice(0, 2)} ${unchecked.length}개 풀어 보기</button>` : ''}${AI.ok ? `<button class="ap-btn sm" data-aigen="${id}">AI 새 문제</button>` : ''}</div>
+    <p class="ap-small ap-muted" style="margin:6px 0 0">정복하기: 정복하거나 정복 실패가 확인될 때까지 최대 ${RULES.need + 1}문제, 매번 다른 모양으로 나와요.</p>
     ${guideBox}
-    <div class="ap-cardk" style="margin-top:10px"><dl><div><dt>왜 필요한가</dt><dd>${esc(c.why)}</dd></div><div><dt>핵심</dt><dd>${esc(c.core)}</dd></div></dl></div>
-    <dl class="ap-kv" style="margin-top:12px"><dt>${COPY.titles.panelPre}</dt><dd>${pre.length ? chips(key, st, pre) : '<span class="ap-small ap-muted">없음 (출발 개념)</span>'}</dd><dt>${COPY.titles.panelNext}</dt><dd>${nxt.length ? chips(key, st, nxt) : '<span class="ap-small ap-muted">없음</span>'}</dd></dl>
-    <div class="ap-ch3" style="margin-top:12px">${helpBtn('lineage')}<span>${COPY.titles.lineage}</span><span class="ap-small ap-muted" style="font-weight:400">(위가 먼저 · 옆으로 밀어서 보기)</span></div><div class="ap-gwrap" id="lineage"></div>
-    <div class="ap-row" style="margin-top:12px">${lecBtn(key, id)}<button class="ap-btn sm pri" data-start="concept" data-arg="${id}">이 개념 정복하기</button>${unchecked.length ? `<button class="ap-btn sm" data-start="pre" data-arg="${id}">선행 ${unchecked.length}개 확인</button>` : ''}${AI.ok ? `<button class="ap-btn sm" data-aigen="${id}">AI 새 문제</button>` : ''}</div>
-    <p class="ap-small ap-muted" style="margin:6px 0 0">"이 개념 정복하기"는 정복하거나 정복 실패로 확인될 때까지 문제를 내요. 연속 확인 때는 매번 다른 모양의 문제가 나와요.</p></div>`;
+    <div class="ap-cardk" style="margin-top:12px"><dl><div><dt>왜 필요한가</dt><dd>${esc(c.why)}</dd></div><div><dt>핵심</dt><dd>${esc(c.core)}</dd></div></dl></div>
+    <dl class="ap-kv" style="margin-top:12px"><dt>${COPY.titles.panelPre}</dt><dd>${pre.length ? chips(key, st, pre) : `<span class="ap-small ap-muted">없음 (첫 개념)</span>`}</dd><dt>${COPY.titles.panelNext}</dt><dd>${nxt.length ? chips(key, st, nxt) : '<span class="ap-small ap-muted">없음</span>'}</dd></dl>
+    <div class="ap-ch3" style="margin-top:12px">${helpBtn('lineage')}<span>${COPY.titles.lineage}</span><span class="ap-small ap-muted" style="font-weight:400">(위가 먼저 · 옆으로 밀어서 보기)</span></div><div class="ap-gwrap" id="lineage"></div></div>`;
 }
 function drawLineage(key, id){
   const box = $('#lineage'); if(!box) return;
@@ -560,7 +623,7 @@ function drawLineage(key, id){
   dagre.layout(g);
   const gi = g.graph();
   const fill = x => { const s = statusOf(st, x); return s === 'none' ? 'var(--surface)' : `color-mix(in srgb,var(--st-${s}) 16%,var(--surface))`; };
-  let svg = `<svg class="ap-graph" width="${Math.ceil(gi.width)}" height="${Math.ceil(gi.height)}" viewBox="0 0 ${Math.ceil(gi.width)} ${Math.ceil(gi.height)}" role="img" aria-label="${esc(c.title)}의 선행 개념 그래프"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>`;
+  let svg = `<svg class="ap-graph" width="${Math.ceil(gi.width)}" height="${Math.ceil(gi.height)}" viewBox="0 0 ${Math.ceil(gi.width)} ${Math.ceil(gi.height)}" role="img" aria-label="${esc(c.title)}의 기초 개념 그림"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>`;
   for(const [a, b] of edges){ const pts = g.edge(String(a), String(b)).points; const hot = statusOf(st, a) === 'unknown' && statusOf(st, b) === 'unknown';
     svg += `<path class="e${hot ? ' hot' : ''}" marker-end="url(#ar)" d="M${pts.map(p => `${p.x},${p.y}`).join('L')}"/>`; }
   for(const x of ids){ const p = g.node(String(x)), s = statusOf(st, x);
@@ -643,7 +706,7 @@ async function runCoach(){
     {name:'get_concept', description:'개념 하나의 정의, 상태와 근거, 선행 개념(각 상태), 관련 강의 장면.', inputSchema:{type:'object', properties:{id:{type:'integer'}}, required:['id']},
       execute:({id}) => { log(`get_concept(${id})`); const c = ix.byId.get(Number(id)); if(!c) throw new Error('없는 개념이에요'); return {...T(c.id), basis:stateLine(st, c.id, t), why:c.why, core:c.core.slice(0, 300), prereq:c.prereq.filter(ix.live).map(T), lecture:c.scenes.map(s => `${data.scenes[s].lesson}강 ${data.scenes[s].title}`)}; }},
   ];
-  const prompt = `${TUTOR}\n과목: ${data.name}. 도구로 학생 기록과 개념 지도를 조회해서 오늘 할 일을 정해. get_progress → get_guide → get_half_and_due 순서로 보고, 필요하면 get_concept.\n기록이 거의 없으면 진단부터 하라고 해. 학생에게 해요체로. 형식:\n지금 상태: 한두 줄\n오늘 순서: 최대 4단계, 각 줄 "개념 — 무엇을 할지(강의/정복하기/선행 확인) — 이유"\n한마디: 한 줄`;
+  const prompt = `${TUTOR}\n과목: ${data.name}. 도구로 학생 기록과 개념 지도를 조회해서 오늘 할 일을 정해. get_progress → get_guide → get_half_and_due 순서로 보고, 필요하면 get_concept.\n기록이 거의 없으면 진단부터 하라고 해. 학생에게 해요체로. 형식:\n지금 상태: 한두 줄\n오늘 순서: 최대 4단계, 각 줄 "개념 — 무엇을 할지(강의/정복하기/기초 풀어 보기) — 이유"\n한마디: 한 줄`;
   try{ const {text} = await AI.s(prompt, {tools, modelTier:'default', cache:false, onText:({text}) => { out.textContent = text; }}); out.textContent = text; }
   catch(e){ out.textContent = (e.text || '') + '\n' + aiErr(e); aiOff(e); }
   btn.disabled = false;
@@ -656,9 +719,9 @@ function renderTop(){
   $('#tabs').innerHTML = ['today', 'quiz', 'lec', 'map'].map(v => `<a href="#/${route.subj}/${v}"${route.view === v ? ' aria-current="page"' : ''}>${COPY.tabs[v]}${v === 'quiz' && SES && SES.key === route.subj && SES.phase !== 'done' ? ' •' : ''}</a>`).join('');
 }
 function renderFoot(){
-  $('#foot').innerHTML = `${store.err ? '마지막 저장이 실패했어요. 다시 풀면 다시 저장해요.<br>' : ''}${COPY.foot()} 통컴시 개념 147개의 전체 선행 관계 그래프는 <a class="ap-link" href="https://charming-chanmin.github.io/cs-ontology-agent/explorer.html">온톨로지 탐색기</a>에서 볼 수 있어요.`;
+  $('#foot').innerHTML = `${store.err ? '마지막 저장이 실패했어요. 다시 풀면 다시 저장해요.<br>' : ''}${COPY.foot()} · 전체 개념 관계는 <a class="ap-link" href="https://charming-chanmin.github.io/cs-ontology-agent/explorer.html">온톨로지 탐색기</a>`;
 }
-let LASTSEL = null;
+const isPhone = () => window.innerWidth < 900;
 function render(){
   const key = route.subj;
   GUIDE.closeHelp();
@@ -666,16 +729,38 @@ function render(){
   const v = $('#view');
   v.innerHTML = route.view === 'quiz' ? renderQuiz() : route.view === 'lec' ? renderLec() : route.view === 'map' ? renderMap() : renderToday();
   wire(v, key);
-  if(route.view === 'map' && route.arg){ drawLineage(key, +route.arg);
-    // 폰에서는 지도 아래에 설명이 붙으니, 개념을 새로 고르면 그 설명으로 내려간다 (둘러보기 중엔 그대로)
-    if(LASTSEL !== key + route.arg && window.innerWidth < 900 && !GUIDE.isOpen()){ const sd = $('#side'); if(sd) requestAnimationFrame(() => sd.scrollIntoView({block:'start'})); } }
-  LASTSEL = route.view === 'map' && route.arg ? key + route.arg : null;
+  if(route.view === 'map' && route.arg) drawLineage(key, +route.arg);
+  if(route.view !== 'map') SHEET = false;
+  // 폰에서 개념 창이 열려 있으면 뒤 화면은 안 움직이게
+  document.body.classList.toggle('ap-lock', route.view === 'map' && !!$('#side.open') && isPhone());
   if(route.view === 'lec' && route.arg && route.arg.includes('-')){ const el = document.getElementById('sc-' + route.arg); if(el) requestAnimationFrame(() => el.scrollIntoView({block:'start'})); }
+  resumeChip(key);
+}
+// 문제를 풀다가 강의·지도로 가도 한 번에 돌아올 수 있게
+function resumeChip(key){
+  let rp = document.getElementById('resume');
+  const on = SES && SES.key === key && SES.phase !== 'done' && route.view !== 'quiz';
+  if(!on){ if(rp) rp.remove(); return; }
+  if(!rp){ rp = document.createElement('a'); rp.id = 'resume'; rp.className = 'ap-resume'; document.body.appendChild(rp); }
+  rp.href = `#/${key}/quiz`;
+  rp.textContent = `← 풀던 문제로 · ${SES.title}${SES.max ? ` ${Math.min(SES.n, SES.max)}/${SES.max}` : ''}`;
+}
+const closeSheet = () => go(`#/${route.subj}/map`);
+// 답한 뒤 결과가 화면 아래에 숨어 있으면 보이는 곳까지 내려 준다
+function showFeedback(){
+  const fb = $('#fb'); if(!fb) return;
+  const top = fb.getBoundingClientRect().top;
+  if(top > window.innerHeight * 0.62){
+    const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({top:window.scrollY + top - Math.min(140, window.innerHeight * 0.18), behavior:calm ? 'auto' : 'smooth'});
+  }
 }
 function wire(v, key){
   v.querySelectorAll('[data-start]').forEach(b => b.addEventListener('click', () => startSession(key, b.dataset.start, b.dataset.arg)));
   v.querySelectorAll('[data-cid]').forEach(b => { if(b.tagName === 'BUTTON') b.addEventListener('click', () => go(`#/${key}/map/${b.dataset.cid}`)); });
   v.querySelectorAll('[data-mapf]').forEach(b => b.addEventListener('click', () => { MAPF = b.dataset.mapf; render(); }));
+  v.querySelectorAll('[data-mapf-go]').forEach(b => b.addEventListener('click', () => { MAPF = b.dataset.mapfGo; go(`#/${key}/map`); }));
+  v.querySelectorAll('[data-close-sheet]').forEach(b => b.addEventListener('click', closeSheet));
   v.querySelectorAll('[data-read]').forEach(b => b.addEventListener('click', () => { const st = store.load(key), sid = b.dataset.read; if(st.read[sid]) delete st.read[sid]; else st.read[sid] = now(); store.save(key); b.textContent = st.read[sid] ? '✓ 읽음' : '다 읽었어요'; b.classList.toggle('pri', !st.read[sid]); }));
   v.querySelectorAll('[data-aigen]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; b.textContent = 'AI가 만드는 중…';
     try{ const id = await aiNewQuestion(key, +b.dataset.aigen); SES = {key, mode:'ai', title:`AI 문제 · ${cshort(key, +b.dataset.aigen)}`, pool:[id], queue:[id], max:1, used:new Set(), n:0, results:[], changes:[], probe:null, probeQ:0, probes:[], cur:null, phase:'q', note:null}; nextQuestion(); go(`#/${key}/quiz`); }
@@ -704,8 +789,12 @@ function wire(v, key){
   const as = $('#aiSend'); if(as){ const inp = $('#aiQ'); const send = () => { const t = inp.value.trim(); if(t){ inp.value = ''; askTutor(t); } }; as.onclick = send; inp.addEventListener('keydown', e => { if(e.key === 'Enter') send(); }); }
 }
 document.addEventListener('keydown', e => {
-  if(route.view !== 'quiz' || !SES || GUIDE.isOpen() || e.target.closest('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if(GUIDE.isOpen() || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Esc: 도움말 말풍선이 없을 때 지도의 개념 창을 닫는다
+  if(e.key === 'Escape' && route.view === 'map' && route.arg && !document.querySelector('.hp-pop')){ e.preventDefault(); closeSheet(); return; }
+  if(route.view !== 'quiz' || !SES || e.target.closest('input,textarea,select')) return;
   if(SES.phase === 'q'){ const i = '1234'.indexOf(e.key); const b = i >= 0 && document.querySelector(`[data-opt="${i}"]`); if(b){ e.preventDefault(); b.click(); } }
+  else if(SES.phase === 'fb' && e.key === 'Enter' && !e.target.closest('button,a,summary')){ const nx = $('#next'); if(nx){ e.preventDefault(); nx.click(); } }
 });
 document.addEventListener('click', e => { const b = e.target.closest('[data-subj]'); if(b) go(`#/${b.dataset.subj}/${route.view}`); });
 
