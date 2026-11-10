@@ -57,8 +57,8 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
     return { kind: 'mcq', stem, options: order.map(i => escS(opts[i].text)), answer: [order.indexOf(correct) + 1],
       expl: Object.fromEntries(order.map((i, k) => [String(k + 1), escS(opts[i].expl)])), concepts };
   };
-  const tExpl = x => `맞는 설명이야. ${x.why || ''}`.trim();
-  const fExpl = x => `틀렸어. 맞게 고치면 → ${x.fix}${x.why ? '. ' + x.why : ''}`;
+  const tExpl = x => `맞는 설명이에요. ${x.why || ''}`.trim();
+  const fExpl = x => `틀렸어요. 맞게 고치면 → ${x.fix}${x.why ? '. ' + x.why : ''}`;
 
   if (pattern === 'fact-true' || pattern === 'fact-false') {
     const T = spec.facts.filter(x => x.t), F = spec.facts.filter(x => x.f);
@@ -86,10 +86,10 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
     const ok = o => normT(o.term) !== normT(x.term) && normT(o.def) !== normT(x.def);
     const others = [...shuffle(spec.terms.filter(ok)), ...shuffle((ctx.siblingTerms || []).filter(ok))].slice(0, 3);
     if (pattern === 'term-def') {
-      const opts = [{ text: x.term, expl: `맞아. ${x.term} = ${x.def}` }, ...others.map(o => ({ text: o.term, expl: `${o.term}${josa(o.term, '은', '는')} ${o.def}` }))];
+      const opts = [{ text: x.term, expl: `맞아요. ${x.term} = ${x.def}` }, ...others.map(o => ({ text: o.term, expl: `${o.term}${josa(o.term, '은', '는')} ${o.def}` }))];
       return mcq(`<p class="qtext">다음 설명에 해당하는 것은?</p><blockquote>${escS(x.def)}</blockquote>`, opts, 0);
     }
-    const opts = [{ text: x.def, expl: `맞아. ${x.why || `${x.term}${josa(x.term, '을', '를')} 정확히 설명한 문장이야.`}` }, ...others.map(o => ({ text: o.def, expl: `이건 ${o.term}에 대한 설명이야.` }))];
+    const opts = [{ text: x.def, expl: `맞아요. ${x.why || `${x.term}${josa(x.term, '을', '를')} 정확히 설명한 문장이에요.`}` }, ...others.map(o => ({ text: o.def, expl: `이건 ${o.term}에 대한 설명이에요.` }))];
     return mcq(`<p class="qtext"><b>${escS(x.term)}</b>에 대한 설명으로 옳은 것은?</p>`, opts, 0);
   }
   if (pattern === 'cmp-pick') {
@@ -103,8 +103,8 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
     const seen = new Set([say(rightAttr, A)]), wrong = [];
     for (const c of cands) { const s = say(c.attr, c.it); if (!seen.has(s) && wrong.length < 3) { seen.add(s); wrong.push(c); } }
     if (wrong.length < 3) return null;
-    const opts = [{ text: say(rightAttr, A), expl: `맞아. ${A}의 ${rightAttr}${josa(rightAttr, '은', '는')} ${rows[rightAttr][A]}. ${why[rightAttr] || ''}`.trim() },
-      ...wrong.map(c => ({ text: say(c.attr, c.it), expl: `이건 ${c.it}의 ${c.attr}${josa(c.attr, '이야', '야')}. ${A}${josa(A, '은', '는')} ${rows[c.attr][A]}. ${why[c.attr] || ''}`.trim() }))];
+    const opts = [{ text: say(rightAttr, A), expl: `맞아요. ${A}의 ${rightAttr}${josa(rightAttr, '은', '는')} ${rows[rightAttr][A]}. ${why[rightAttr] || ''}`.trim() },
+      ...wrong.map(c => ({ text: say(c.attr, c.it), expl: `이건 ${c.it}의 ${c.attr}${josa(c.attr, '이에요', '예요')}. ${A}${josa(A, '은', '는')} ${rows[c.attr][A]}. ${why[c.attr] || ''}`.trim() }))];
     return mcq(`<p class="qtext"><b>${escS(A)}</b>의 특징으로 옳은 것은?</p>`, opts, 0);
   }
   if (pattern === 'cmp-false') {
@@ -113,8 +113,8 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
     if (attrs.length < 4) return null;
     const chosen = take(attrs, 4), bad = chosen[0];
     const line = (attr, swap) => `${attr} — ${A}: ${swap ? rows[attr][B] : rows[attr][A]} / ${B}: ${swap ? rows[attr][A] : rows[attr][B]}`;
-    const opts = [{ text: line(bad, true), expl: `거꾸로야. ${A}: ${rows[bad][A]}, ${B}: ${rows[bad][B]}. ${why[bad] || ''}`.trim() },
-      ...chosen.slice(1).map(a => ({ text: line(a, false), expl: `맞아. ${A}${josa(A, '은', '는')} ${rows[a][A]}, ${B}${josa(B, '은', '는')} ${rows[a][B]}. ${why[a] || ''}`.trim() }))];
+    const opts = [{ text: line(bad, true), expl: `거꾸로예요. ${A}: ${rows[bad][A]}, ${B}: ${rows[bad][B]}. ${why[bad] || ''}`.trim() },
+      ...chosen.slice(1).map(a => ({ text: line(a, false), expl: `맞아요. ${A}${josa(A, '은', '는')} ${rows[a][A]}, ${B}${josa(B, '은', '는')} ${rows[a][B]}. ${why[a] || ''}`.trim() }))];
     return mcq(`<p class="qtext">${escS(A)}${josa(A, '과', '와')} ${escS(B)}${josa(B, '을', '를')} 비교한 것으로 <b>옳지 않은 것</b>은?</p>`, opts, 0);
   }
   if (pattern === 'seq-order') {
@@ -131,20 +131,20 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
       for (const s of shuffle(all)) if (wrong.length < 3 && !perms.has(s)) { perms.add(s); wrong.push(s); }
     }
     if (wrong.length < 3) return null;
-    const opts = [{ text: right, expl: `맞아. ${spec.seq.why || ''}`.trim() }, ...wrong.map(w => ({ text: w, expl: `순서가 섞였어. 바른 순서: ${right}` }))];
+    const opts = [{ text: right, expl: `맞아요. ${spec.seq.why || ''}`.trim() }, ...wrong.map(w => ({ text: w, expl: `순서가 섞였어요. 바른 순서: ${right}` }))];
     return mcq(`<p class="qtext">${escS(spec.seq.name)}의 순서로 옳은 것은?</p>`, opts, 0);
   }
   if (pattern === 'seq-next') {
     const st = spec.seq.steps, i = Math.floor(r() * (st.length - 1));
     const others = take(st.filter((_, k) => k !== i + 1 && k !== i), 3);
-    const opts = [{ text: st[i + 1], expl: `맞아. ${st.join(' → ')}` }, ...others.map(o => ({ text: o, expl: `${o}${josa(o, '은', '는')} ${st.indexOf(o) + 1}번째 단계야. 순서: ${st.join(' → ')}` }))];
+    const opts = [{ text: st[i + 1], expl: `맞아요. ${st.join(' → ')}` }, ...others.map(o => ({ text: o, expl: `${o}${josa(o, '은', '는')} ${st.indexOf(o) + 1}번째 단계예요. 순서: ${st.join(' → ')}` }))];
     return mcq(`<p class="qtext">${escS(spec.seq.name)}에서 <b>${escS(st[i])}</b> 바로 다음 단계는?</p>`, opts, 0);
   }
   if (pattern === 'cls-odd') {
     const groups = spec.classify.groups, why = spec.classify.why || {}, names = clsAsk(spec.classify);
     const G = pick(names), inG = take(groups[G], 3);
     const outName = pick(Object.keys(groups).filter(g => g !== G)), odd = pick(groups[outName]);
-    const opts = [{ text: odd, expl: `${odd}${josa(odd, '은', '는')} ${outName}에 속해. ${why[outName] || ''}`.trim() }, ...inG.map(x => ({ text: x, expl: `${G}에 속해. ${why[G] || ''}`.trim() }))];
+    const opts = [{ text: odd, expl: `${odd}${josa(odd, '은', '는')} ${outName}에 속해요. ${why[outName] || ''}`.trim() }, ...inG.map(x => ({ text: x, expl: `${G}에 속해요. ${why[G] || ''}`.trim() }))];
     return mcq(`<p class="qtext">다음 중 <b>${escS(G)}</b>에 속하지 <b>않는</b> 것은? <span class="note">(${escS(spec.classify.name)})</span></p>`, opts, 0);
   }
   if (pattern === 'essay') {

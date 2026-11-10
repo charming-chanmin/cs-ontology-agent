@@ -3,6 +3,7 @@
 //
 // 문제 유형 (모두 온톨로지에서 나온다)
 //   def  개념 맞히기: 개념의 "왜 생겼나"를 보여 주고(개념 이름은 □□로 가림) 어떤 개념인지 고른다
+//   core 설명 맞히기: 개념의 "핵심 내용"을 보여 주고(개념 이름은 □□로 가림) 어떤 개념인지 고른다 (opts.type으로만 낸다)
 //   pre  선행 찾기:   X를 이해하려면 바로 앞에서 알아야 하는 개념을 고른다 (prerequisite_of 관계)
 //   next 다음 찾기:   X를 알고 나면 바로 이어서 배울 수 있는 개념을 고른다
 // 오답 보기는 일부러 헷갈리게 고른다: 같은 장 개념, 그리고 방향이 반대인 개념(선행 문제엔 뒤 개념, 다음 문제엔 앞 개념).
@@ -14,7 +15,7 @@ export const QUIZ_SCOPES = {
   os: { label: 'OS·시스템SW (11~18장)', from: 11, to: 18 },
   trend: { label: '최신 기술 (19~22장)', from: 19, to: 22 },
 };
-export const QUIZ_TYPES = { def: '개념 맞히기', pre: '선행 찾기', next: '다음 찾기' };
+export const QUIZ_TYPES = { def: '개념 맞히기', pre: '선행 찾기', next: '다음 찾기', core: '설명 맞히기' };
 const LETTERS = 'ABCD';
 
 export function mulberry32(seed) {
@@ -27,12 +28,16 @@ export function mulberry32(seed) {
   };
 }
 
-// 개념 이름에서 가릴 낱말: "곱셈·나눗셈 (부스 알고리즘)" → 곱셈·나눗셈, 곱셈, 나눗셈, 부스 알고리즘
+// 개념 이름에서 가릴 낱말: "곱셈·나눗셈 (부스 알고리즘)" → 곱셈·나눗셈, 곱셈, 나눗셈, 부스 알고리즘 (+ 영문 약어)
 export function titleTerms(title) {
   const base = title.replace(/^\[범위 밖\]\s*/, '');
   const main = base.replace(/\s*\(.*?\)\s*/g, ' ').trim();
   const inner = (base.match(/\((.*?)\)/) || [])[1];
-  const parts = [main, ...main.split(/[·/,+]| vs /), ...(inner ? inner.split(/[·,/]/) : [])];
+  // 영문 약어(ROM·MAR·VM…)도 따로 가린다: "ROM 종류"만 가리면 설명 속 "ROM"이 답을 알려 준다
+  const latin = base.match(/[A-Za-z][A-Za-z0-9-]+/g) || [];
+  // 띄어 쓴 긴 낱말(3글자 이상)도 따로: "세그먼테이션 혼용"이면 "세그먼테이션"
+  const words = main.split(/[\s·/,+:]+/).filter(w => w.length >= 3 && !['vs', '그리고'].includes(w));
+  const parts = [main, ...main.split(/[·/,+]| vs /), ...(inner ? inner.split(/[·,/]/) : []), ...latin, ...words];
   return [...new Set(parts.map(s => s.trim()).filter(s => s.length >= 2))].sort((a, b) => b.length - a.length);
 }
 export const maskTerms = (text, terms) => terms.reduce((t, w) => t.split(w).join('□□'), text);
@@ -63,7 +68,7 @@ export function makeQuiz(nodes, opts = {}) {
   };
   const anc = id => walk(id, 'prereq', memoA), desc = id => walk(id, 'next', memoD);
   const okIds = list => list.filter(i => usable(byId.get(i)));
-  const can = (n, t) => (t === 'def' ? !!n.why : t === 'pre' ? okIds(n.prereq).length > 0 : okIds(n.next).length > 0);
+  const can = (n, t) => (t === 'def' ? !!n.why : t === 'core' ? !!n.core : t === 'pre' ? okIds(n.prereq).length > 0 : okIds(n.next).length > 0);
   const T = id => byId.get(id).title;
 
   // 문제를 낼 개념: 범위 안, 별 2개 이상. 중요한 개념이 더 자주 나오게 별점 가중 셔플.
@@ -104,21 +109,28 @@ export function makeQuiz(nodes, opts = {}) {
       quote = maskTerms(n.why, titleTerms(n.title));
       ds = distract(correct, [], [[inChapters([n.chapter]), 3], [near(n.chapter), 3], [everyone, 3]]);
       explain = `「${n.title}」 ${n.why}. 핵심: ${cut(n.core, 110)}`;
-      noteFor = id => `고른 「${T(id)}」${eunNeun(T(id))} 이 문제를 풀려고 나왔어: ${byId.get(id).why}`;
+      noteFor = id => `고른 「${T(id)}」${eunNeun(T(id))} 이 문제를 풀려고 나왔어요: ${byId.get(id).why}`;
+    } else if (type === 'core') {
+      correct = n.id; blame = n.id;
+      prompt = '이 설명에 해당하는 개념은?';
+      quote = cut(maskTerms(n.core, titleTerms(n.title)), 170);
+      ds = distract(correct, [], [[inChapters([n.chapter]), 3], [near(n.chapter), 3], [everyone, 3]]);
+      explain = `「${n.title}」 — ${cut(n.core, 140)}. 왜 생겼나: ${n.why}`;
+      noteFor = id => `고른 「${T(id)}」${eunNeun(T(id))} 이런 개념이에요: ${cut(byId.get(id).core, 90)}`;
     } else if (type === 'pre') {
       const cand = okIds(n.prereq);
       correct = cand[Math.floor(rand() * cand.length)]; blame = n.id;
       prompt = `「${n.title}」 — 이걸 이해하려면 바로 앞에서 알아야 하는 개념은?`;
       ds = distract(correct, [...anc(n.id), n.id], [[[...desc(n.id)], 1], [inChapters([n.chapter, chapterOf(correct)]), 3], [near(n.chapter), 3], [everyone, 3]]);
       explain = `「${n.title}」의 바로 앞 개념: ${okIds(n.prereq).map(T).join(' · ')}.`;
-      noteFor = id => (desc(n.id).has(id) ? `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」 다음에 배우는 쪽이야. 방향이 반대야.` : `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」의 선행 개념이 아니야.`);
+      noteFor = id => (desc(n.id).has(id) ? `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」 다음에 배우는 쪽이에요. 방향이 반대예요.` : `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」의 선행 개념이 아니에요.`);
     } else {
       const cand = okIds(n.next);
       correct = cand[Math.floor(rand() * cand.length)]; blame = correct;
       prompt = `「${n.title}」 — 이걸 알고 나면 바로 이어서 배울 수 있는 개념은?`;
       ds = distract(correct, [...desc(n.id), n.id], [[[...anc(n.id)], 1], [inChapters([n.chapter, chapterOf(correct)]), 3], [near(n.chapter), 3], [everyone, 3]]);
       explain = `「${n.title}」에서 바로 열리는 개념: ${okIds(n.next).map(T).join(' · ')}.`;
-      noteFor = id => (anc(n.id).has(id) ? `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」보다 먼저 배우는 쪽이야. 방향이 반대야.` : `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」에서 바로 열리지 않아.`);
+      noteFor = id => (anc(n.id).has(id) ? `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」보다 먼저 배우는 쪽이에요. 방향이 반대예요.` : `고른 「${T(id)}」${eunNeun(T(id))} 「${n.title}」에서 바로 열리지 않아요.`);
     }
     if (!ds) return null;
     const ids = shuffle([correct, ...ds]);

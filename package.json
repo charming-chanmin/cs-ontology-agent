@@ -1,7 +1,7 @@
 {
   "name": "cs-ontology-agent",
-  "version": "0.5.0",
-  "description": "독학사 컴퓨터공학 개념 온톨로지 + 학습 코치(앎·모름 지도·길잡이·원인 찾기) + MCP 서버",
+  "version": "0.6.0",
+  "description": "독학사 컴퓨터공학 개념 온톨로지 + 학습 코치(개념 정복 지도·길잡이·원인 찾기) + MCP 서버",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

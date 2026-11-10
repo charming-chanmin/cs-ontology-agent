@@ -24,12 +24,18 @@ const load = file => {
   return d;
 };
 
-function gen(subject, cid, salt) {
-  const g = makeQuiz(subject.concepts, { count: 1, ids: [cid], seed: (cid * 7919 + salt * 104729 + 17) >>> 0 }).questions.find(x => x.blame === cid);
-  if (!g) return null;
-  const id = `gen-${cid}-${salt}`;
-  subject.quizzes[id] = { id, kind: 'mcq', options: g.options, concepts: [g.blame], answer: [g.answer + 1] };
-  return id;
+// 앱의 checkQuestion과 같은 규칙: 개념 지도 문제(def → core) 중 최근에 안 본 모양을 먼저
+function gen(subject, cid, salt, state) {
+  let first = null;
+  for (const type of ['def', 'core']) {
+    const g = makeQuiz(subject.concepts, { count: 1, ids: [cid], type, seed: (cid * 7919 + salt * 104729 + 17) >>> 0 }).questions.find(x => x.type === type && x.blame === cid);
+    if (!g) continue;
+    const id = `gen-${type}-${cid}-${salt}`;
+    subject.quizzes[id] = { id, shape: `gen-${type}-${cid}`, kind: 'mcq', options: g.options, concepts: [cid], answer: [g.answer + 1] };
+    if (!state || !K.isRecentShape(state, cid, subject.quizzes[id])) return id;
+    first = first || id;
+  }
+  return first;
 }
 // 학생: blind 개념은 찍어서만 맞히고(객관식 1/4, 주관식 1/20), 아는 개념은 8% 실수
 function student(blind, rand) {
@@ -54,7 +60,7 @@ function run(file, gapId, { seed = 1, n = 40 } = {}) {
       for (let k = 0; k < 8; k++) {
         const target = K.probeTarget(ix, state, probe); if (target == null) break;
         let cq = K.checkQuizFor(ix, state, target, pool, used, now);
-        if (!cq) cq = gen(subject, target, used.size);
+        if (!cq || K.isRecentShape(state, target, subject.quizzes[cq])) cq = gen(subject, target, used.size, state) || cq;
         if (!cq) { K.probeResult(ix, state, probe, null); continue; }
         used.add(cq); const cok = answer(subject.quizzes[cq]); K.applyAnswer(ix, state, subject.quizzes[cq], cok, now, { check: target }); now += 120000;
         K.probeResult(ix, state, probe, cok); checks.push(`${target}${cok ? '✓' : '✗'}`);
@@ -89,7 +95,7 @@ assert.ok(1 - falseStarts / allStarts >= 0.7, '아는 개념을 출발점으로 
   let now = Date.parse('2026-11-09T09:00:00Z'), used = new Set();
   for (let i = 0; i < 40; i++) { const id = K.pickQuiz(ix, state, pool, used, now, rand); used.add(id); K.applyAnswer(ix, state, subject.quizzes[id], rand() > 0.08, now); now += 120000; }
   const r = K.recommend(ix, state, now);
-  console.log(`다 아는 학생 40문제: 앎 ${r.count.know} · 확인 중 ${r.count.half} · 모름 ${r.count.unknown} · 출발점 ${r.guide.starts.length}`);
+  console.log(`다 아는 학생 40문제: 정복 ${r.count.know} · 모험 중 ${r.count.half} · 정복 실패 ${r.count.unknown} · 출발점 ${r.guide.starts.length}`);
   assert.ok(r.guide.starts.length <= 4);
 }
 // 상태 규칙
@@ -97,14 +103,23 @@ assert.ok(1 - falseStarts / allStarts >= 0.7, '아는 개념을 출발점으로 
   const ix = K.createIndex({ concepts: [{ id: 1, prereq: [], next: [2], stars: 5, chapter: 1 }, { id: 2, prereq: [1], next: [3], stars: 5, chapter: 1 }, { id: 3, prereq: [2], next: [], stars: 3, chapter: 1 }], quizzes: {}, scenes: {}, lessons: [] });
   const s = K.emptyState(), q = id => ({ id: 'q' + id + Math.random(), kind: 'mcq', options: [1, 2, 3, 4], concepts: [id] });
   assert.equal(K.statusOf(s, 2), 'none');
-  K.applyAnswer(ix, s, q(2), true, 1); assert.equal(K.statusOf(s, 2), 'half');
-  K.applyAnswer(ix, s, q(2), true, 2); assert.equal(K.statusOf(s, 2), 'know');
+  K.applyAnswer(ix, s, q(2), true, 1); assert.equal(K.statusOf(s, 2), 'half'); assert.equal(K.streakOf(s, 2), 1);
+  K.applyAnswer(ix, s, q(2), true, 2); assert.equal(K.statusOf(s, 2), 'half', '2번으로는 아직 정복 아님'); assert.equal(K.toKnow(s, 2), 1);
+  K.applyAnswer(ix, s, q(2), true, 2); assert.equal(K.statusOf(s, 2), 'know', '3번 연속 맞히면 정복');
   assert.equal(K.statusOf(s, 1), 'none', '선행은 직접 풀기 전까지 그대로');
   K.applyAnswer(ix, s, q(2), false, 3); assert.equal(K.statusOf(s, 2), 'unknown', '앎이어도 틀리면 모름');
   K.applyAnswer(ix, s, q(2), true, 4); assert.equal(K.statusOf(s, 2), 'half');
-  // 복습: 연속 2번 → 3일 뒤
-  const s2 = K.emptyState(); K.applyAnswer(ix, s2, q(1), true, 0); K.applyAnswer(ix, s2, q(1), true, 0);
+  // 복습: 정복 직후 3일 뒤, 한 번 더 맞히면 7일 뒤
+  const s2 = K.emptyState(); for (let k = 0; k < 3; k++) K.applyAnswer(ix, s2, q(1), true, 0);
   assert.ok(!K.isDue(s2, 1, 2 * K.DAY) && K.isDue(s2, 1, 3 * K.DAY));
+  K.applyAnswer(ix, s2, q(1), true, 0); assert.ok(!K.isDue(s2, 1, 6 * K.DAY) && K.isDue(s2, 1, 7 * K.DAY));
+  // 문제 모양 기억: 최근에 푼 모양은 다음 확인에서 뒤로 밀린다
+  const quizzes = { a: { id: 'a', kind: 'mcq', concepts: [3] }, b: { id: 'b', kind: 'mcq', concepts: [3] } };
+  const ixq = K.createIndex({ concepts: ix.subject.concepts, quizzes, scenes: {}, lessons: [] }), sq = K.emptyState();
+  K.applyAnswer(ixq, sq, quizzes.a, true, 0);
+  assert.deepEqual(K.recentShapes(sq, 3), ['a']);
+  assert.equal(K.checkQuizFor(ixq, sq, 3, ['a', 'b'], new Set(), 0), 'b', '방금 푼 모양 a 말고 b');
+  assert.equal(K.shapeOf({ id: 'spec-1-fact-true:123', tid: 'spec-1-fact-true' }), 'spec-1-fact-true', '같은 틀에서 나온 문제는 같은 모양');
   // 길잡이: 1, 2, 3 모두 모름 → 출발점은 1, 2·3은 막힘
   const s3 = K.emptyState(); for (const id of [1, 2, 3]) K.applyAnswer(ix, s3, q(id), false, 0);
   const g = K.guide(ix, s3);
@@ -119,7 +134,7 @@ assert.ok(1 - falseStarts / allStarts >= 0.7, '아는 개념을 출발점으로 
   assert.equal(K.probeTarget(ix, s4, p), null);
   assert.deepEqual(K.probeSummary(ix, s4, p).path, [2, 3]);
   // 실수: 3을 틀렸지만 선행은 다 알고, 3을 다시 맞힘 → 출발점 없음
-  const s5 = K.emptyState(); for (const id of [1, 2]) { K.applyAnswer(ix, s5, q(id), true, 0); K.applyAnswer(ix, s5, q(id), true, 0); }
+  const s5 = K.emptyState(); for (const id of [1, 2]) for (let k = 0; k < 3; k++) K.applyAnswer(ix, s5, q(id), true, 0);
   K.applyAnswer(ix, s5, q(3), false, 0); const p5 = K.startProbe(3);
   assert.equal(K.probeTarget(ix, s5, p5), 3); K.applyAnswer(ix, s5, q(3), true, 0); K.probeResult(ix, s5, p5, true);
   assert.equal(K.probeTarget(ix, s5, p5), null); const sm = K.probeSummary(ix, s5, p5);
@@ -128,10 +143,23 @@ assert.ok(1 - falseStarts / allStarts >= 0.7, '아는 개념을 출발점으로 
   const s6 = K.emptyState(); K.applyAnswer(ix, s6, { id: 'm', kind: 'mcq', concepts: [3, 1] }, false, 0);
   assert.equal(K.statusOf(s6, 3), 'unknown'); assert.equal(K.statusOf(s6, 1), 'none');
   // 예전 저장(확률 v1) → 기록에서 다시 계산
-  const old = { v: 1, k: { 2: { p: 0.9 } }, attempts: [{ q: 'a', c: [2], ok: 1, t: 1 }, { q: 'b', c: [2], ok: 1, t: 2 }, { q: 'c', c: [3], ok: 0, t: 3 }], read: { '1-1': 5 }, gaps: {}, checks: {} };
+  const old = { v: 1, k: { 2: { p: 0.9 } }, attempts: [{ q: 'a', c: [2], ok: 1, t: 1 }, { q: 'b', c: [2], ok: 1, t: 2 }, { q: 'd', c: [2], ok: 1, t: 2 }, { q: 'c', c: [3], ok: 0, t: 3 }], read: { '1-1': 5 }, gaps: {}, checks: {} };
   const m = K.migrate(old);
-  assert.equal(m.v, 2); assert.equal(K.statusOf(m, 2), 'know'); assert.equal(K.statusOf(m, 3), 'unknown'); assert.deepEqual(m.read, { '1-1': 5 });
+  assert.equal(m.v, 2); assert.equal(K.statusOf(m, 2), 'know'); assert.deepEqual(K.recentShapes(m, 2), ['a', 'b', 'd']); assert.equal(K.statusOf(m, 3), 'unknown'); assert.deepEqual(m.read, { '1-1': 5 });
   assert.equal(K.migrate(null).v, 2);
-  console.log('상태 규칙 확인: 안 봄 → 확인 중 → 앎, 틀리면 모름, 복습 3일, 길잡이·원인 찾기·예전 저장 변환');
+  console.log(`상태 규칙 확인: 미지의 영역 → 모험 중 → ${K.RULES.need}번 연속이면 정복, 틀리면 정복 실패, 복습 3·7일, 문제 모양 돌려쓰기, 길잡이·원인 찾기·예전 저장 변환`);
+}
+// 문제 모양 범위: 모든 개념이 서로 다른 모양 3가지 이상으로 확인될 수 있어야 "3번 연속 = 정복"이 같은 문제 외우기가 안 된다
+for (const file of ['tcs', 'alg']) {
+  const subject = load(file), shapes = new Map(subject.concepts.map(c => [c.id, new Set()]));
+  for (const q of Object.values(subject.quizzes)) for (const c of q.concepts) if (shapes.has(c)) shapes.get(c).add(String(q.id).replace(/-\d+$/, ''));
+  const thin = [];
+  for (const c of subject.concepts) {
+    if (c.title.startsWith('[범위 밖]')) continue;
+    for (const type of ['def', 'core']) if (makeQuiz(subject.concepts, { count: 1, ids: [c.id], type, seed: 1 }).questions.some(x => x.type === type && x.blame === c.id)) shapes.get(c.id).add('gen-' + type);
+    if (shapes.get(c.id).size < K.RULES.need) thin.push(`${c.id}(${shapes.get(c.id).size})`);
+  }
+  console.log(`${file} 문제 모양 ${K.RULES.need}가지 미만 개념: ${thin.length ? thin.join(' ') : '없음'}`);
+  assert.deepEqual(thin, [], `${file}: 문제 모양이 모자란 개념`);
 }
 console.log('\n시뮬레이션 통과');

@@ -1,31 +1,37 @@
 // 학습 코치 엔진: 개념 온톨로지 위에 "이 개념을 아는가"를 규칙으로 표시한다. 확률 계산은 쓰지 않는다.
+// 화면에 보이는 이름(정복·모험 중…)과 설명 문구는 copy.js에 있다. 이 파일은 규칙과 계산만 맡는다.
 //
-// ■ 개념 하나의 상태 (그 개념 문제를 직접 푼 기록만 본다)
-//   안 봄    아직 이 개념 문제를 안 풀었다
-//   모름     마지막으로 푼 문제를 틀렸다
-//   확인 중   마지막에 맞혔지만 연속 1번뿐이다 (한 번 더 맞히면 앎)
-//   앎       2번 연속 맞혔다
-//   + 복습 때: 앎인데 마지막으로 맞힌 지 오래됐다 (연속 2번 → 3일, 3번 → 7일, 4번 → 14일, 5번 이상 → 30일)
+// ■ 개념 하나의 상태 (그 개념 문제를 직접 푼 기록만 본다)          화면 이름(copy.js)
+//   none     아직 이 개념 문제를 안 풀었다                        미지의 영역
+//   unknown  마지막으로 푼 문제를 틀렸다                          정복 실패
+//   half     마지막에 맞혔지만 연속 RULES.need번이 안 됐다         모험 중 (1/3, 2/3)
+//   know     RULES.need번(기본 3번) 연속 맞혔다                    정복
+//   + 복습 때: know인데 마지막으로 맞힌 지 오래됐다 (RULES.reviewDays)
 //
 // ■ 온톨로지 길잡이 (선행 관계 = "B를 이해하려면 A를 먼저 알아야 한다")
-//   막힘     모름인데, 선행 개념 중에도 모름이 있다 → 그 선행부터
-//   출발점   모름인데, 선행 개념 중 모름은 없다 → 여기부터 공부하면 된다
+//   blocked(막힘)  unknown인데, 선행 개념 중에도 unknown이 있다 → 그 선행부터
+//   start(출발점)  unknown인데, 선행 개념 중 unknown은 없다 → 여기부터 공부하면 된다
 //
-// ■ 원인 찾기: 문제를 틀리면 그 개념의 선행 중 아직 확인 안 된 것(안 봄·확인 중)을
-//   확인 문제로 하나씩 묻는다. 틀리면 그 선행도 모름 → 한 칸 더 내려간다. 맞히면 다음 선행.
-//   이미 모름인 선행이 있으면 묻지 않고 바로 그쪽으로 내려간다.
+// ■ 원인 찾기: 문제를 틀리면 그 개념의 선행 중 아직 확인 안 된 것(none·half)을
+//   확인 문제로 하나씩 묻는다. 틀리면 그 선행도 unknown → 한 칸 더 내려간다. 맞히면 다음 선행.
+//   이미 unknown인 선행이 있으면 묻지 않고 바로 그쪽으로 내려간다.
+//
+// ■ 문제 모양 돌려쓰기: 개념마다 최근에 푼 "문제 모양"(규격 패턴·강의 문제·계산 유형)을 기억해 두고,
+//   연속 확인 때 같은 모양을 다시 내지 않는다 (같은 보기를 외워서 정복하지 못하게).
 // 페이지와 테스트가 이 파일 하나를 같이 쓴다.
 
 export const DAY = 86400000;
-export const NEED = 2;                       // 앎이 되려면 연속으로 맞혀야 하는 수
-export const reviewDays = streak => (streak >= 5 ? 30 : { 2: 3, 3: 7, 4: 14 }[streak] || 3);
-export const STATUS = {
-  know: { label: '앎', icon: '✓', rule: '이 개념 문제를 2번 연속 맞혔어' },
-  half: { label: '확인 중', icon: '◐', rule: '마지막에 맞혔어. 한 번 더 맞히면 앎' },
-  unknown: { label: '모름', icon: '✗', rule: '이 개념 문제를 마지막에 틀렸어' },
-  none: { label: '안 봄', icon: '○', rule: '아직 이 개념 문제를 안 풀었어' },
+// 바꾸고 싶은 규칙은 여기 한 곳만 고치면 된다 (화면 설명은 copy.js가 이 값을 읽어서 쓴다)
+export const RULES = {
+  need: 3,                     // 정복(know)이 되려면 연속으로 맞혀야 하는 수
+  reviewDays: [3, 7, 14, 30],  // 정복 뒤 다시 점검할 때까지 (정복 직후 3일, 한 번 더 맞히면 7일, …)
+  recentShapes: 4,             // 개념마다 기억해 두는 최근 문제 모양 수
 };
+export const NEED = RULES.need;
+export const reviewDays = streak => RULES.reviewDays[Math.min(Math.max(0, streak - RULES.need), RULES.reviewDays.length - 1)];
 export const STATUS_KEYS = ['know', 'half', 'unknown', 'none'];
+// 문제 모양: 같은 틀에서 나온 문제는 같은 모양 (규격 패턴 spec-105-fact-true, 계산 calc-fcfs, 강의 문제는 문제마다)
+export const shapeOf = quiz => quiz.shape || quiz.tid || quiz.id;
 
 export function createIndex(subject) {
   const byId = new Map(subject.concepts.map(c => [c.id, c]));
@@ -63,22 +69,27 @@ export function statusOf(state, id) {
   const s = state.k[id];
   if (!s || !s.n) return 'none';
   if (!s.streak) return 'unknown';
-  return s.streak >= NEED ? 'know' : 'half';
+  return s.streak >= RULES.need ? 'know' : 'half';
 }
-// 앎이 될 때까지 더 맞혀야 하는 수 (앎이면 0)
-export const toKnow = (state, id) => Math.max(0, NEED - ((state.k[id] && state.k[id].streak) || 0));
+// 정복까지 연속 몇 번 맞혔나 (0 ~ need)
+export const streakOf = (state, id) => Math.min(RULES.need, (state.k[id] && state.k[id].streak) || 0);
+// 정복될 때까지 더 맞혀야 하는 수 (정복이면 0)
+export const toKnow = (state, id) => Math.max(0, RULES.need - ((state.k[id] && state.k[id].streak) || 0));
 export function dueAt(state, id) {
   const s = state.k[id];
-  return s && s.streak >= NEED ? s.lastOk + reviewDays(s.streak) * DAY : null;
+  return s && s.streak >= RULES.need ? s.lastOk + reviewDays(s.streak) * DAY : null;
 }
+// 이 개념을 최근에 어떤 모양의 문제로 풀었나 (최근 것이 뒤)
+export const recentShapes = (state, id) => (state.k[id] && state.k[id].q) || [];
 export const isDue = (state, id, now) => { const d = dueAt(state, id); return d != null && d <= now; };
 
-function record(state, ids, ok, t) {
+function record(state, ids, ok, t, shape) {
   const changes = [];
   for (const id of ids) {
     const before = statusOf(state, id);
     const s = state.k[id] || (state.k[id] = { n: 0, c: 0, streak: 0, last: 0, lastOk: 0, h: '' });
     s.n += 1; s.last = t; s.h = (s.h + (ok ? '1' : '0')).slice(-8);
+    if (shape) s.q = [...(s.q || []).filter(x => x !== shape), shape].slice(-RULES.recentShapes);
     if (ok) { s.c += 1; s.streak += 1; s.lastOk = t; } else s.streak = 0;
     changes.push({ id, before, after: statusOf(state, id), streak: s.streak });
   }
@@ -90,8 +101,8 @@ export const hitIds = (ids, ok) => (ok ? ids : ids.slice(0, 1));
 // 답 하나를 반영한다. 그 문제가 묻는 개념만 바뀐다 (선행 개념은 직접 확인하기 전까지 그대로)
 export function applyAnswer(ix, state, quiz, correct, now, extra = {}) {
   const ids = quiz.concepts.filter(id => ix.byId.has(id));
-  const changes = record(state, hitIds(ids, !!correct), !!correct, now);
-  state.attempts.push({ q: quiz.tid || quiz.id, c: ids, ok: correct ? 1 : 0, t: now, ...(extra.check != null ? { chk: extra.check } : {}), ...(extra.ai ? { ai: 1 } : {}) });
+  const changes = record(state, hitIds(ids, !!correct), !!correct, now, shapeOf(quiz));
+  state.attempts.push({ q: shapeOf(quiz), c: ids, ok: correct ? 1 : 0, t: now, ...(extra.check != null ? { chk: extra.check } : {}), ...(extra.ai ? { ai: 1 } : {}) });
   if (state.attempts.length > 400) state.attempts.splice(0, state.attempts.length - 400);
   return changes;
 }
@@ -104,7 +115,7 @@ export function migrate(raw) {
   if (raw.updated) out.updated = raw.updated;
   const attempts = Array.isArray(raw.attempts) ? raw.attempts.filter(a => a && Array.isArray(a.c)) : [];
   if (raw.v === 2 && raw.k && typeof raw.k === 'object') { out.k = raw.k; out.attempts = attempts; return out; }
-  for (const a of attempts) { record(out, hitIds(a.c, !!a.ok), !!a.ok, a.t || 0); out.attempts.push(a); }
+  for (const a of attempts) { record(out, hitIds(a.c, !!a.ok), !!a.ok, a.t || 0, a.q); out.attempts.push(a); }
   return out;
 }
 
@@ -214,7 +225,7 @@ export function recommend(ix, state, now) {
 }
 
 // ── 문제 고르기 ──
-// 개념마다 "지금 물어볼 이유"를 점수로: 출발점(모름) > 확인 중 > 복습 때 > 안 봄 > 막힘 > 앎
+// 개념마다 "지금 물어볼 이유"를 점수로: 출발점(unknown) > 모험 중(half) > 복습 때 > 미지의 영역(none) > 막힘 > 정복
 export function needScore(ix, state, id, now) {
   const c = ix.byId.get(id); if (!c || c.out) return 0;
   const s = state.k[id], st = statusOf(state, id);
@@ -229,8 +240,11 @@ export function scoreQuiz(ix, state, quiz, now) {
   let best = 0;
   for (const cid of quiz.concepts) best = Math.max(best, needScore(ix, state, cid, now));
   best *= 0.85 + (quiz.weight ?? 30) / 200;
-  const lastSeen = state.attempts.findLast ? state.attempts.findLast(a => a.q === quiz.id) : [...state.attempts].reverse().find(a => a.q === quiz.id);
+  const shape = shapeOf(quiz);
+  const lastSeen = state.attempts.findLast ? state.attempts.findLast(a => a.q === shape) : [...state.attempts].reverse().find(a => a.q === shape);
   if (lastSeen && now - lastSeen.t < DAY) best *= lastSeen.ok ? 0.1 : 0.4;
+  // 그 개념을 최근에 같은 모양으로 풀었으면 다른 모양을 먼저 낸다
+  if (quiz.concepts.some(cid => recentShapes(state, cid).includes(shape))) best *= 0.15;
   return best;
 }
 export function pickQuiz(ix, state, pool, used, now, rand = Math.random) {
@@ -262,10 +276,14 @@ export function diagnosticPool(ix, state, pool, size = 12) {
 export function checkQuizFor(ix, state, conceptId, pool, used, now) {
   const ids = pool.filter(id => ix.quizzes[id] && ix.quizzes[id].concepts.includes(conceptId) && !used.has(id));
   if (!ids.length) return null;
-  const recent = new Set(state.attempts.filter(a => now - a.t < 2 * DAY).map(a => a.q));
-  const rank = id => { const q = ix.quizzes[id]; return (recent.has(id) ? 4 : 0) + (q.concepts[0] === conceptId ? 0 : 2) + (q.kind === 'mcq' ? 0 : 1); };
+  const recent = new Set(state.attempts.filter(a => now - a.t < 2 * DAY).map(a => a.q)), mine = recentShapes(state, conceptId);
+  // 이 개념을 최근에 푼 모양은 맨 뒤로 (오래전에 푼 것일수록 덜 밀림)
+  const rank = id => { const q = ix.quizzes[id], sh = shapeOf(q), k = mine.indexOf(sh);
+    return (k >= 0 ? 20 + k * 5 : 0) + (recent.has(sh) ? 4 : 0) + (q.concepts[0] === conceptId ? 0 : 2) + (q.kind === 'mcq' ? 0 : 1); };
   return ids.sort((a, b) => rank(a) - rank(b))[0];
 }
+// 이 문제가 그 개념을 최근에 푼 모양과 같은가 (같으면 다른 문제를 찾아보는 게 좋다)
+export const isRecentShape = (state, conceptId, quiz) => recentShapes(state, conceptId).includes(shapeOf(quiz));
 
 // 짧은 답 자동 채점
 export function normalize(s) {

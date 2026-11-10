@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { patternsOf, makeSpec } from '../src/specgen.js';
 import { GENERATORS, makeCalc } from '../src/calcgen.js';
-import { makeQuiz } from '../../src/quiz.js';
+import { makeQuiz, titleTerms } from '../../src/quiz.js';
+import { COPY } from '../src/copy.js';
 
 const SHOW = +(process.env.SHOW || 0);
 // HTML → 화면에 보이는 글자 (태그 제거 → 엔티티 한 번 풀기). <pre>·<code> 안은 코드라 따로 다룬다
@@ -17,7 +18,7 @@ const HARD = [
   ['마크다운 기호', /\*\*|(^|[^_])__(?!_)/], ['채워지지 않은 자리', /\$\{|\{\{|\}\}/], ['빈 괄호', /(^|[^\w)])\(\s*\)|「\s*」/],
 ];
 const SOFT = [
-  ['공백 두 칸', / {2,}/], ['문장부호 앞 공백', / [.,!?](?=\s|$)/], ['마침표 두 번', /[^.]\.\.(?!\.)/],
+  ['공백 두 칸', / {2,}/], ['문장부호 앞 공백', / [.,!?](?=\s|$)(?! 버튼)/], ['마침표 두 번', /[^.]\.\.(?!\.)/],
 ];
 // 조사 검사: 받침이 확실히 보이는 자리(한글 바로 뒤 을/를, 」·) 뒤의 조사)만 본다
 function josaIssues(t) {
@@ -87,12 +88,15 @@ for (const key of ['tcs', 'alg']) {
     const ctx = { name: c.title, siblingFalse: sib.flatMap(x => (x.facts || []).filter(f => f.f)), siblingTerms: sib.flatMap(x => x.terms || []) };
     for (const p of patternsOf(spec, ctx)) for (let s = 1; s <= 40; s++) { const q = makeSpec(spec, p, s * 977 + 3, ctx); if (q) auditQuiz(`${key} 규격#${spec.c} ${p}`, q); }
   }
-  // 4) 개념 지도 문제(개념 맞히기): 모든 개념
-  for (const c of data.concepts) {
-    const g = makeQuiz(data.concepts, { count: 1, ids: [c.id], type: 'def', seed: c.id * 31 + 7 }).questions.find(x => x.type === 'def');
+  // 4) 개념 지도 문제(개념 맞히기 def · 설명 맞히기 core): 모든 개념 × 두 유형
+  //    가린 지문(quote)에 개념 이름(영문 약어 포함)이 남으면 답이 보이는 것이라 막는다
+  for (const c of data.concepts) for (const type of ['def', 'core']) {
+    const g = makeQuiz(data.concepts, { count: 1, ids: [c.id], type, seed: c.id * 31 + 7 }).questions.find(x => x.type === type);
     if (!g) continue;
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    auditQuiz(`${key} 지도문제#${c.id}`, { stem: esc(g.prompt) + ' ' + esc(g.quote || ''), options: g.options.map(o => esc(o.title)), answer: [g.answer + 1], expl: Object.fromEntries(g.options.map((o, i) => [i + 1, esc(o.note || '정답')])), extra: esc(g.explain), kind: 'mcq' });
+    auditQuiz(`${key} 지도문제(${type})#${c.id}`, { stem: esc(g.prompt) + ' ' + esc(g.quote || ''), options: g.options.map(o => esc(o.title)), answer: [g.answer + 1], expl: Object.fromEntries(g.options.map((o, i) => [i + 1, esc(o.note || '정답')])), extra: esc(g.explain), kind: 'mcq' });
+    for (const w of titleTerms(c.title)) if (g.quote.includes(w)) note('지문에 답 노출', `${key}#${c.id} ${type}`, w);
+    if (g.quote.replace(/□□/g, '').replace(/[^가-힣A-Za-z0-9]/g, '').length < 12) note('지문이 너무 짧음', `${key}#${c.id} ${type}`, g.quote);
   }
 }
 // 5) 계산 문제: 유형마다 40개
@@ -102,7 +106,23 @@ for (const g of GENERATORS) for (let s = 1; s <= 40; s++) {
   auditQuiz(`계산 ${g.id}`, { stem: c.stem, extra: c.steps, options: c.opts ? c.opts.map(o => String(o).replace(/&/g, '&amp;').replace(/</g, '&lt;')) : null, answer: c.kind === 'mcq' ? [c.answer + 1] : null, kind: c.kind === 'mcq' ? 'mcq' : 'calc', answer_html: String(c.answer) });
 }
 
-const hard = ['undefined', 'NaN', '[object]', '보이는 엔티티', '마크다운 기호', '채워지지 않은 자리', '빈 괄호', '빈 보기', '보기 중복', '정답 번호 오류', '조사'];
+// 6) 화면 문구 사전(copy.js): 함수는 예시 숫자를 넣어 문장을 만들어 본다
+{
+  const ctx = { name: '통합컴퓨터시스템', short: '통컴시', total: 145, count: { know: 3, half: 2, unknown: 1, none: 139 }, starts: 1, blocked: 0, due: 0 };
+  const walk = (v, where) => {
+    if (typeof v === 'function') { const out = v(ctx); if (typeof out === 'string') audit(`문구 ${where}`, out); }
+    else if (typeof v === 'string') audit(`문구 ${where}`, v);
+    else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${where}[${i}]`));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, `${where}.${k}`);
+  };
+  walk(COPY, 'COPY');
+  // 둘러보기가 비추는 대상(data-tour)이 화면 코드에 실제로 있는지
+  const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8') + readFileSync(new URL('../src/template.html', import.meta.url), 'utf8');
+  for (const st of COPY.tour) if (!app.includes(`data-tour="${st.target}"`)) note('둘러보기 대상 없음', st.target, st.title);
+  for (const k of Object.keys(COPY.help)) if (!app.includes(`'${k}'`) && !app.includes(`"${k}"`)) note('안 쓰는 도움말', k, COPY.help[k].title);
+}
+
+const hard = ['지문에 답 노출', '지문이 너무 짧음', '둘러보기 대상 없음', 'undefined', 'NaN', '[object]', '보이는 엔티티', '마크다운 기호', '채워지지 않은 자리', '빈 괄호', '빈 보기', '보기 중복', '정답 번호 오류', '조사'];
 console.log(`글자 점검: 화면 글자 ${checked}개`);
 for (const [k, l] of found) {
   const uniq = [...new Set(l.map(x => x.replace(/ (보기|해설)\d+:/, ':')))];
