@@ -171,7 +171,6 @@ const GUIDE = (() => {
     if (root && mode === 'tour') { if (e.key === 'ArrowRight') show(idx + 1); else if (e.key === 'ArrowLeft') show(idx - 1); }
   }, true);
   window.addEventListener('resize', placePop);
-  window.addEventListener('scroll', placePop, true);   // 개념 창(시트) 안에서 스크롤해도 말풍선이 버튼을 따라간다
 
   return {
     flags, welcome, startTour, openHelp, closeHelp, tipOnce,

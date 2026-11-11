@@ -1,7 +1,5 @@
-"""학습 코치 → 한 파일짜리 웹 앱 (저장소: python3 app/build.py → docs/index.html, 구조 명세: app/SPEC.md)
-  docs/index.html     GitHub Pages용 완성 문서 (doctype·charset·viewport 포함)
-  dist/artifact.html  Claude 아티팩트용 조각 (뼈대는 아티팩트가 씌운다)
-  python3 build.py
+"""학습 코치 → 한 파일짜리 웹 앱 (저장소 docs/index.html). GitHub Pages와 Claude 아티팩트에 같은 파일을 쓴다.
+  python3 app/build.py      (구조 명세: app/SPEC.md)
 
   src/template.html  뼈대 (자리표시만)
   src/app.css        화면 모양            → /*__APP_CSS__*/
@@ -19,7 +17,7 @@ import json, re, pathlib
 root = pathlib.Path(__file__).resolve().parent
 SRC = root / 'src'
 
-def build(src_dir=SRC, data_dir=root / 'data', spec_dir=root / 'specs', quizgen=None, out=root / 'docs' / 'index.html', frag=None):
+def build(src_dir=SRC, data_dir=root / 'data', spec_dir=root / 'specs', quizgen=None, out=root / 'docs' / 'index.html'):
     read = lambda p: pathlib.Path(p).read_text(encoding='utf-8')
     strip = lambda s: re.sub(r'^import .*?;\n', '', re.sub(r'^export ', '', s, flags=re.M), flags=re.M)
     wrap = lambda name, s, names: f'const {name} = (() => {{\n{strip(s)}\nreturn {{ {", ".join(names)} }};\n}})();'
@@ -46,18 +44,9 @@ def build(src_dir=SRC, data_dir=root / 'data', spec_dir=root / 'specs', quizgen=
     for k, v in parts.items():
         assert t.count(k) == 1, k
         t = t.replace(k, v)
-    # GitHub Pages용 완성 문서: 폰에서 데스크톱 폭(980px)으로 작게 보이지 않게 viewport를 꼭 넣는다
-    cut = t.index('<div class="ap-wrap">')
-    page = ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
-            '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-            + t[:cut].rstrip() + '\n</head>\n<body>\n' + t[cut:].rstrip() + '\n</body>\n</html>\n')
     out.parent.mkdir(exist_ok=True)
-    out.write_text(page, encoding='utf-8')
-    # Claude 아티팩트용 조각: 아티팩트가 문서 뼈대(doctype·head·viewport)를 직접 씌운다
-    if frag:
-        pathlib.Path(frag).parent.mkdir(exist_ok=True)
-        pathlib.Path(frag).write_text(t, encoding='utf-8')
-    return out, len(page.encode()) // 1024
+    out.write_text(t, encoding='utf-8')
+    return out, len(t.encode()) // 1024
 
 if __name__ == '__main__':
     repo = root.parent

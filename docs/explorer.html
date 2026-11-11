@@ -1,8 +1,3 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>CS 개념 온톨로지</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -160,8 +155,6 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
 @media (max-width:900px){.main.qmode .panel{order:-1}.main{grid-template-columns:minmax(0,1fr)}.stage{height:62vh;min-height:360px}.head{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:no-preference){.node rect,.edge{transition:opacity .2s}}
 </style>
-</head>
-<body>
 
 <div class="wrap">
   <header class="head">
@@ -760,5 +753,3 @@ if(location.hash === '#quiz' || location.hash === '#diag'){ view = 'diag'; syncS
   if(matchMedia('(max-width:900px)').matches) requestAnimationFrame(() => $('.tools').scrollIntoView({block:'start'})); }
 render(true); panel();
 </script>
-</body>
-</html>

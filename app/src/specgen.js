@@ -58,8 +58,7 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
       expl: Object.fromEntries(order.map((i, k) => [String(k + 1), escS(opts[i].expl)])), concepts };
   };
   const tExpl = x => `맞는 설명이에요. ${x.why || ''}`.trim();
-  // 보기 문장 자체가 맞는지·틀린지를 말한다 ("옳지 않은 것은?"에서 정답 보기에 '틀렸어요'가 붙으면 내 답이 틀렸다는 말로 읽혀서)
-  const fExpl = x => `틀린 설명이에요. 맞게 고치면 → ${x.fix}${x.why ? '. ' + x.why : ''}`;
+  const fExpl = x => `틀렸어요. 맞게 고치면 → ${x.fix}${x.why ? '. ' + x.why : ''}`;
 
   if (pattern === 'fact-true' || pattern === 'fact-false') {
     const T = spec.facts.filter(x => x.t), F = spec.facts.filter(x => x.f);
@@ -114,8 +113,8 @@ export function makeSpec(spec, pattern, seed, ctx = {}) {
     if (attrs.length < 4) return null;
     const chosen = take(attrs, 4), bad = chosen[0];
     const line = (attr, swap) => `${attr} — ${A}: ${swap ? rows[attr][B] : rows[attr][A]} / ${B}: ${swap ? rows[attr][A] : rows[attr][B]}`;
-    const opts = [{ text: line(bad, true), expl: `${A}${josa(A, '과', '와')} ${B}${josa(B, '이', '가')} 거꾸로 된 설명이에요. ${A}: ${rows[bad][A]}, ${B}: ${rows[bad][B]}. ${why[bad] || ''}`.trim() },
-      ...chosen.slice(1).map(a => ({ text: line(a, false), expl: `맞는 설명이에요. ${A}${josa(A, '은', '는')} ${rows[a][A]}, ${B}${josa(B, '은', '는')} ${rows[a][B]}. ${why[a] || ''}`.trim() }))];
+    const opts = [{ text: line(bad, true), expl: `거꾸로예요. ${A}: ${rows[bad][A]}, ${B}: ${rows[bad][B]}. ${why[bad] || ''}`.trim() },
+      ...chosen.slice(1).map(a => ({ text: line(a, false), expl: `맞아요. ${A}${josa(A, '은', '는')} ${rows[a][A]}, ${B}${josa(B, '은', '는')} ${rows[a][B]}. ${why[a] || ''}`.trim() }))];
     return mcq(`<p class="qtext">${escS(A)}${josa(A, '과', '와')} ${escS(B)}${josa(B, '을', '를')} 비교한 것으로 <b>옳지 않은 것</b>은?</p>`, opts, 0);
   }
   if (pattern === 'seq-order') {

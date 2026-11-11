@@ -122,18 +122,7 @@ for (const g of GENERATORS) for (let s = 1; s <= 40; s++) {
   for (const k of Object.keys(COPY.help)) if (!app.includes(`'${k}'`) && !app.includes(`"${k}"`)) note('안 쓰는 도움말', k, COPY.help[k].title);
 }
 
-// 7) 만든 페이지(docs/index.html): 폰에서 데스크톱 폭으로 작게 보이지 않게 viewport·charset이 있어야 한다
-{
-  const page = new URL('../../docs/index.html', import.meta.url);
-  try {
-    const head = readFileSync(page, 'utf8').slice(0, 600);
-    if (!/^<!doctype html>/i.test(head)) note('페이지 뼈대', 'docs/index.html', 'doctype 없음');
-    if (!/<meta name="viewport" content="width=device-width/.test(head)) note('페이지 뼈대', 'docs/index.html', 'viewport 없음');
-    if (!/<meta charset="utf-8">/i.test(head)) note('페이지 뼈대', 'docs/index.html', 'charset 없음');
-  } catch (e) { /* 아직 빌드 전 */ }
-}
-
-const hard = ['페이지 뼈대', '지문에 답 노출', '지문이 너무 짧음', '둘러보기 대상 없음', 'undefined', 'NaN', '[object]', '보이는 엔티티', '마크다운 기호', '채워지지 않은 자리', '빈 괄호', '빈 보기', '보기 중복', '정답 번호 오류', '조사'];
+const hard = ['지문에 답 노출', '지문이 너무 짧음', '둘러보기 대상 없음', 'undefined', 'NaN', '[object]', '보이는 엔티티', '마크다운 기호', '채워지지 않은 자리', '빈 괄호', '빈 보기', '보기 중복', '정답 번호 오류', '조사'];
 console.log(`글자 점검: 화면 글자 ${checked}개`);
 for (const [k, l] of found) {
   const uniq = [...new Set(l.map(x => x.replace(/ (보기|해설)\d+:/, ':')))];
