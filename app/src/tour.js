@@ -100,10 +100,11 @@ const GUIDE = (() => {
     timer = setTimeout(ready, 40);
   }
   function renderTip(st) {
-    const tip = root.querySelector('.tour-tip'), n = steps.length, nav = COPY.tourNav, last = idx === n - 1;
-    tip.innerHTML = `<i class="tour-arrow" aria-hidden="true"></i><div class="tour-step">${idx + 1} / ${n}</div><h3 id="tourT">${st.title}</h3><div class="tour-body">${st.body(helpCtx())}</div>
+    const tip = root.querySelector('.tour-tip'), n = steps.length, nav = COPY.tourNav, last = idx === n - 1, ctx = helpCtx();
+    const done = typeof nav.done === 'function' ? nav.done(ctx) : nav.done;   // 푼 문제가 없으면 "진단 12문제로 시작", 있으면 "튜토리얼 끝"
+    tip.innerHTML = `<i class="tour-arrow" aria-hidden="true"></i><div class="tour-step">${idx + 1} / ${n}</div><h3 id="tourT">${st.title}</h3><div class="tour-body">${st.body(ctx)}</div>
       <div class="tour-dots" aria-hidden="true">${steps.map((_, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="tour-nav">${last ? `<button class="ap-btn sm" data-g="close">${nav.close}</button><span></span><button class="ap-btn sm pri" data-g="done">${nav.done}</button>`
+      <div class="tour-nav">${last ? `${ctx.tried ? '<span></span>' : `<button class="ap-btn sm" data-g="close">${nav.close}</button>`}<span></span><button class="ap-btn sm" data-g="prev">${nav.prev}</button><button class="ap-btn sm pri" data-g="done">${done}</button>`
         : `<button class="tour-skip" data-g="skip">${nav.skip}</button><span></span>${idx ? `<button class="ap-btn sm" data-g="prev">${nav.prev}</button>` : ''}<button class="ap-btn sm pri" data-g="next">${nav.next} →</button>`}</div>`;
     setTimeout(() => { const b = tip.querySelector('[data-g="next"],[data-g="done"]'); if (b) b.focus({ preventScroll: true }); }, 30);
   }
@@ -171,6 +172,7 @@ const GUIDE = (() => {
     if (root && mode === 'tour') { if (e.key === 'ArrowRight') show(idx + 1); else if (e.key === 'ArrowLeft') show(idx - 1); }
   }, true);
   window.addEventListener('resize', placePop);
+  window.addEventListener('scroll', placePop, true);   // 개념 창(시트) 안에서 스크롤해도 말풍선이 버튼을 따라간다
 
   return {
     flags, welcome, startTour, openHelp, closeHelp, tipOnce,
